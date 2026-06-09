@@ -1,0 +1,22 @@
+# Binaries
+bin/
+
+# Internal build artifacts
+internal/dashboard/dist/
+
+# Dependencies
+web/node_modules/
+
+# Environment
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Database files (internal)
+database/internal/*.db

@@ -1,0 +1,8 @@
+# Sample: Redis Development Connection
+type: redis
+host: "localhost"
+port: 6379
+database: 0
+password: ""
+ssl: false
+tags: ["dev", "sample"]

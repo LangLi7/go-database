@@ -1,0 +1,92 @@
+# go-database — Full Stack Deployment
+# Includes: API, Sample Databases, Internal DB
+
+version: "3.8"
+
+services:
+  api:
+    build: .
+    container_name: godb-api
+    ports:
+      - "8080:8080"
+    environment:
+      GODB_AUTH_JWT_SECRET: "${GODB_JWT_SECRET:-change-me-in-production}"
+      GODB_LOG_LEVEL: "info"
+    volumes:
+      - internal-db:/app/database/internal
+    restart: unless-stopped
+    depends_on:
+      - postgres-sample
+      - mysql-sample
+      - mariadb-sample
+      - mongodb-sample
+      - redis-sample
+
+  # Sample Databases
+  postgres-sample:
+    image: postgres:16-alpine
+    container_name: godb-pg
+    environment:
+      POSTGRES_DB: sampledb
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev123
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./database/samples/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    profiles:
+      - samples
+
+  mysql-sample:
+    image: mysql:8.4
+    container_name: godb-mysql
+    environment:
+      MYSQL_DATABASE: sampledb
+      MYSQL_USER: dev
+      MYSQL_PASSWORD: dev123
+      MYSQL_ROOT_PASSWORD: root123
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./database/samples/mysql/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    profiles:
+      - samples
+
+  mariadb-sample:
+    image: mariadb:11
+    container_name: godb-maria
+    environment:
+      MARIADB_DATABASE: sampledb
+      MARIADB_USER: dev
+      MARIADB_PASSWORD: dev123
+      MARIADB_ROOT_PASSWORD: root123
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./database/samples/mariadb/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    profiles:
+      - samples
+
+  mongodb-sample:
+    image: mongo:7
+    container_name: godb-mongo
+    environment:
+      MONGO_INITDB_DATABASE: sampledb
+      MONGO_INITDB_ROOT_USERNAME: dev
+      MONGO_INITDB_ROOT_PASSWORD: dev123
+    ports:
+      - "27017:27017"
+    profiles:
+      - samples
+
+  redis-sample:
+    image: redis:7-alpine
+    container_name: godb-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    profiles:
+      - samples
+
+volumes:
+  internal-db:

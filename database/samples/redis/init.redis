@@ -1,0 +1,43 @@
+# go-database Sample Data: Redis
+# Import: redis-cli < init.redis | cat init.redis | redis-cli --pipe
+
+# Session Tokens
+SET session:alice "eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyIjoiYWxpY2UifQ.xxx"
+SET session:bob "eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyIjoiYm9iIn0.yyy"
+EXPIRE session:alice 3600
+EXPIRE session:bob 3600
+
+# Rate Limiting Counters
+SET rate:alice:api 42
+SET rate:bob:api 17
+
+# User Cache (JSON strings)
+SET user:1 '{"id":1,"name":"Alice Muster","role":"admin","email":"alice@example.com"}'
+SET user:2 '{"id":2,"name":"Bob Beispiel","role":"customer","email":"bob@example.com"}'
+
+# Product Cache
+SET product:1 '{"id":1,"name":"Laptop Pro","price":1499.99,"stock":10}'
+SET product:2 '{"id":2,"name":"Wireless Mouse","price":49.99,"stock":50}'
+SET product:3 '{"id":3,"name":"USB-C Hub","price":34.99,"stock":30}'
+
+# Leaderboard (Game scores)
+ZADD leaderboard:players 1500 "alice"
+ZADD leaderboard:players 2300 "bob"
+ZADD leaderboard:players 1800 "charlie"
+ZADD leaderboard:players 3100 "dora"
+
+# Queue / PubSub channels
+PUBLISH notifications "System started"
+PUBLISH events "User alice logged in"
+
+# Config cache
+HSET config:app theme "dark"
+HSET config:app language "de"
+HSET config:app page_size "50"
+HSET config:app notifications "true"
+
+# Recent activity list
+LPUSH activity:global "Alice created order #1234"
+LPUSH activity:global "Bob updated profile"
+LPUSH activity:global "System backup completed"
+LTRIM activity:global 0 99

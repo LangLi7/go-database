@@ -1,0 +1,9 @@
+# Sample: PostgreSQL Development Connection
+type: postgres
+host: "localhost"
+port: 5432
+database: "sampledb"
+user: "dev"
+password: "dev123"
+ssl: false
+tags: ["dev", "sample"]

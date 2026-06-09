@@ -1,0 +1,9 @@
+# Sample: MariaDB Development Connection
+type: mariadb
+host: "localhost"
+port: 3307
+database: "sampledb"
+user: "dev"
+password: "dev123"
+ssl: false
+tags: ["dev", "sample"]

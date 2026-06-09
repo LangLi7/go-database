@@ -1,0 +1,77 @@
+# go-database — Docker Sample Databases
+# Start: docker-compose -f database/docker/docker-compose.yml up -d
+# Stop:  docker-compose -f database/docker/docker-compose.yml down
+
+version: "3.8"
+
+services:
+  postgres-sample:
+    image: postgres:16-alpine
+    container_name: godb-pg
+    environment:
+      POSTGRES_DB: sampledb
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev123
+    ports:
+      - "5432:5432"
+    volumes:
+      - ../samples/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - pgdata:/var/lib/postgresql/data
+
+  mysql-sample:
+    image: mysql:8.4
+    container_name: godb-mysql
+    environment:
+      MYSQL_DATABASE: sampledb
+      MYSQL_USER: dev
+      MYSQL_PASSWORD: dev123
+      MYSQL_ROOT_PASSWORD: root123
+    ports:
+      - "3306:3306"
+    volumes:
+      - ../samples/mysql/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - mysqldata:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
+
+  mariadb-sample:
+    image: mariadb:11
+    container_name: godb-maria
+    environment:
+      MARIADB_DATABASE: sampledb
+      MARIADB_USER: dev
+      MARIADB_PASSWORD: dev123
+      MARIADB_ROOT_PASSWORD: root123
+    ports:
+      - "3307:3306"
+    volumes:
+      - ../samples/mariadb/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - mariadata:/var/lib/mysql
+
+  mongodb-sample:
+    image: mongo:7
+    container_name: godb-mongo
+    environment:
+      MONGO_INITDB_DATABASE: sampledb
+      MONGO_INITDB_ROOT_USERNAME: dev
+      MONGO_INITDB_ROOT_PASSWORD: dev123
+    ports:
+      - "27017:27017"
+    volumes:
+      - ../samples/mongodb/init.json:/docker-entrypoint-initdb.d/01-init.json
+      - mongodata:/data/db
+
+  redis-sample:
+    image: redis:7-alpine
+    container_name: godb-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    command: redis-server --appendonly yes
+
+volumes:
+  pgdata:
+  mysqldata:
+  mariadata:
+  mongodata:
+  redisdata:

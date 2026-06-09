@@ -1,0 +1,9 @@
+# Sample: MongoDB Development Connection
+type: mongodb
+host: "localhost"
+port: 27017
+database: "sampledb"
+user: "dev"
+password: "dev123"
+ssl: false
+tags: ["dev", "sample"]
