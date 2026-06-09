@@ -1,0 +1,17 @@
+# go-database default configuration
+server:
+  host: "0.0.0.0"
+  port: 8080
+  base_url: "http://localhost:8080"
+
+auth:
+  jwt_secret: "change-me-in-production"
+  token_duration: 60  # minutes
+
+internal_db:
+  auth_path: "database/internal/auth.db"
+  jobs_path: "database/internal/jobs.db"
+  metrics_path: "database/internal/metrics.db"
+
+log_level: "info"
+data_dir: "database/internal"

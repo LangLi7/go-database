@@ -1,0 +1,9 @@
+# Sample: MySQL Development Connection
+type: mysql
+host: "localhost"
+port: 3306
+database: "sampledb"
+user: "dev"
+password: "dev123"
+ssl: false
+tags: ["dev", "sample"]

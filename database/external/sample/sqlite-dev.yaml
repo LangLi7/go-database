@@ -1,0 +1,5 @@
+# Sample: SQLite File Connection
+type: sqlite
+source: file                           # file = lokale .db Datei
+filepath: "./database/samples/sqlite/sampledb.db"
+tags: ["dev", "sample", "embedded"]

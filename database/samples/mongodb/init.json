@@ -1,0 +1,61 @@
+// go-database Sample Database: MongoDB
+// Collection: movies
+// Import: mongosh sampledb movies.json
+
+[
+  {
+    "_id": { "$oid": "001" },
+    "title": "The Matrix",
+    "year": 1999,
+    "genre": ["Sci-Fi", "Action"],
+    "rating": 8.7,
+    "director": "Lana Wachowski",
+    "cast": ["Keanu Reeves", "Laurence Fishburne", "Carrie-Anne Moss"],
+    "plot": "A computer hacker learns about the true nature of reality.",
+    "streaming": { "netflix": true, "prime": false, "disney": false }
+  },
+  {
+    "_id": { "$oid": "002" },
+    "title": "Inception",
+    "year": 2010,
+    "genre": ["Sci-Fi", "Thriller"],
+    "rating": 8.8,
+    "director": "Christopher Nolan",
+    "cast": ["Leonardo DiCaprio", "Joseph Gordon-Levitt", "Elliot Page"],
+    "plot": "A thief who steals corporate secrets through dream-sharing technology.",
+    "streaming": { "netflix": false, "prime": true, "disney": false }
+  },
+  {
+    "_id": { "$oid": "003" },
+    "title": "Interstellar",
+    "year": 2014,
+    "genre": ["Sci-Fi", "Drama"],
+    "rating": 8.6,
+    "director": "Christopher Nolan",
+    "cast": ["Matthew McConaughey", "Anne Hathaway", "Jessica Chastain"],
+    "plot": "A team of explorers travel through a wormhole in space.",
+    "streaming": { "netflix": false, "prime": false, "disney": true }
+  },
+  {
+    "_id": { "$oid": "004" },
+    "title": "The Dark Knight",
+    "year": 2008,
+    "genre": ["Action", "Drama", "Crime"],
+    "rating": 9.0,
+    "director": "Christopher Nolan",
+    "cast": ["Christian Bale", "Heath Ledger", "Aaron Eckhart"],
+    "plot": "When the menace known as the Joker wreaks havoc on Gotham.",
+    "streaming": { "netflix": true, "prime": true, "disney": false }
+  },
+  {
+    "_id": { "$oid": "005" },
+    "title": "Pulp Fiction",
+    "year": 1994,
+    "genre": ["Crime", "Drama"],
+    "rating": 8.9,
+    "director": "Quentin Tarantino",
+    "cast": ["John Travolta", "Uma Thurman", "Samuel L. Jackson"],
+    "plot": "The lives of two mob hitmen, a boxer, and others intertwine.",
+    "streaming": { "netflix": true, "prime": false, "disney": false }
+  }
+]
