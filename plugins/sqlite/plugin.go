@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -47,14 +48,23 @@ func (p *sqlitePlugin) Connect(ctx context.Context, cfg plugin.Config) error {
 }
 
 func (p *sqlitePlugin) Ping(ctx context.Context) error {
+	if p.db == nil {
+		return fmt.Errorf("sqlite: not connected")
+	}
 	return p.db.PingContext(ctx)
 }
 
 func (p *sqlitePlugin) Close() error {
+	if p.db == nil {
+		return nil
+	}
 	return p.db.Close()
 }
 
 func (p *sqlitePlugin) Query(ctx context.Context, q string) (*plugin.Result, error) {
+	if p.db == nil {
+		return nil, fmt.Errorf("sqlite: not connected")
+	}
 	start := time.Now()
 	rows, err := p.db.QueryContext(ctx, q)
 	if err != nil {
@@ -88,12 +98,18 @@ func (p *sqlitePlugin) Query(ctx context.Context, q string) (*plugin.Result, err
 }
 
 func (p *sqlitePlugin) Execute(ctx context.Context, q string) (*plugin.Result, error) {
+	if p.db == nil {
+		return nil, fmt.Errorf("sqlite: not connected")
+	}
 	start := time.Now()
 	res, err := p.db.ExecContext(ctx, q)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: exec: %w", err)
 	}
-	affected, _ := res.RowsAffected()
+	affected, err := res.RowsAffected()
+	if err != nil {
+		slog.Warn("sqlite: failed to get rows affected", "error", err)
+	}
 	return &plugin.Result{
 		RowsAffected: affected,
 		Duration:     time.Since(start).Milliseconds(),
@@ -101,6 +117,9 @@ func (p *sqlitePlugin) Execute(ctx context.Context, q string) (*plugin.Result, e
 }
 
 func (p *sqlitePlugin) Tables(ctx context.Context) ([]string, error) {
+	if p.db == nil {
+		return nil, fmt.Errorf("sqlite: not connected")
+	}
 	rows, err := p.db.QueryContext(ctx,
 		"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
 	if err != nil {
@@ -132,6 +151,9 @@ func (p *sqlitePlugin) DropDatabase(ctx context.Context, name string) error {
 }
 
 func (p *sqlitePlugin) Schema(ctx context.Context) (*plugin.Schema, error) {
+	if p.db == nil {
+		return nil, fmt.Errorf("sqlite: not connected")
+	}
 	tables, err := p.Tables(ctx)
 	if err != nil {
 		return nil, err
@@ -140,8 +162,10 @@ func (p *sqlitePlugin) Schema(ctx context.Context) (*plugin.Schema, error) {
 	var schema plugin.Schema
 	for _, tbl := range tables {
 		info := plugin.TableInfo{Name: tbl}
-		_ = p.db.QueryRowContext(ctx,
-			"SELECT COUNT(*) FROM \""+tbl+"\"").Scan(&info.RowCount)
+		if err := p.db.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM \""+tbl+"\"").Scan(&info.RowCount); err != nil {
+			slog.Warn("sqlite: failed to get row count", "table", tbl, "error", err)
+		}
 
 		rows, err := p.db.QueryContext(ctx, "PRAGMA table_info(\""+tbl+"\")")
 		if err != nil {

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Row, Col, Card, Button, Modal, Form, Input, Space, Typography, message, Popconfirm, Collapse, Checkbox, Select, Tag, Empty, Input as AntInput } from 'antd'
-import { PlusOutlined, DeleteOutlined, EditOutlined, SaveOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons'
 import { api } from '../api/client'
 
 const { Title, Text } = Typography
@@ -64,13 +64,16 @@ export default function AdminRoles() {
     }
   }
 
-  const handleCreate = async () => {
-    const vals = await createForm.validateFields()
-    const r = await api.createRole({
-      name: vals.name,
-      permissions: [],
-      db_access: [],
-    })
+	const handleCreate = async () => {
+		let vals
+		try {
+			vals = await createForm.validateFields()
+		} catch { return }
+		const r = await api.createRole({
+			name: vals.name,
+			permissions: [],
+			db_access: [],
+		})
     if (r.success) {
       message.success('Created')
       setCreateModalOpen(false)
@@ -106,8 +109,6 @@ export default function AdminRoles() {
     ),
   })).filter((g: any) => g.children.length > 0)
 
-  const allPermKeys = permGroups.flatMap((g: any) => g.children.map((c: any) => c.key))
-
   return (
     <div>
       <Title level={4} style={{ marginBottom: 16 }}>Roles</Title>
@@ -115,7 +116,7 @@ export default function AdminRoles() {
         <Col span={6}>
           <Card size="small" title="Roles" extra={
             <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)} />
-          } bodyStyle={{ padding: 0, overflow: 'auto', maxHeight: 'calc(100vh - 240px)' }}>
+          } styles={{ body: { padding: 0, overflow: 'auto', maxHeight: 'calc(100vh - 240px)' } }}>
             {roles.map(role => (
               <div
                 key={role.id}
@@ -164,7 +165,7 @@ export default function AdminRoles() {
                   {isModified() && <Button type="primary" size="small" icon={<SaveOutlined />} onClick={saveRole}>Save Changes</Button>}
                 </Space>
               }
-              bodyStyle={{ padding: 0, height: 'calc(100vh - 240px)', display: 'flex', flexDirection: 'column' }}
+              styles={{ body: { padding: 0, height: 'calc(100vh - 240px)', display: 'flex', flexDirection: 'column' } }}
             >
               <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0' }}>
                 <Text strong>Database Access</Text>

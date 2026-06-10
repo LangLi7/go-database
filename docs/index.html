@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>go-database — Universelle DB-Middleware</title>
+<style>
+:root {
+  --bg: #0b0d15;
+  --bg2: #12141e;
+  --bg3: #191c2a;
+  --border: #242739;
+  --text: #e2e4ee;
+  --text2: #8488a0;
+  --text3: #5a5e76;
+  --accent: #6366f1;
+  --accent2: #818cf8;
+  --accent3: #a5b4fc;
+  --green: #34d399;
+  --green2: #10b981;
+  --red: #f87171;
+  --yellow: #fbbf24;
+  --blue: #60a5fa;
+  --cyan: #22d3ee;
+  --orange: #fb923c;
+  --pink: #e879f9;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  font-size: 15px;
+}
+
+/* NAV */
+.nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(11,13,21,.88); backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px; height: 64px;
+  display: flex; align-items: center; gap: 20px;
+}
+.nav .logo { font-weight: 800; font-size: 20px; letter-spacing: -.3px; }
+.nav .logo a { color: var(--accent); text-decoration: none; }
+.nav .logo span { color: var(--text2); font-weight: 400; }
+.nav .badge {
+  font-size: 10px; background: var(--accent); color: #fff;
+  padding: 2px 8px; border-radius: 4px; font-weight: 700;
+}
+.nav .links { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.nav .links a {
+  color: var(--text2); text-decoration: none; font-size: 13px;
+  padding: 6px 14px; border-radius: 6px; transition: .2s;
+}
+.nav .links a:hover { color: var(--text); background: var(--bg3); }
+.nav .links a.primary {
+  background: var(--accent); color: #fff;
+}
+.nav .links a.primary:hover { background: var(--accent2); }
+.theme-btn {
+  background: none; border: 1px solid var(--border); color: var(--text2);
+  width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+  transition: .2s;
+}
+.theme-btn:hover { background: var(--bg3); color: var(--text); }
+
+/* HERO */
+.hero {
+  margin-top: 64px; padding: 80px 32px 64px; text-align: center;
+  background: radial-gradient(ellipse at 50% 0%, rgba(99,102,241,.08) 0%, transparent 60%);
+  border-bottom: 1px solid var(--border);
+}
+.hero h1 {
+  font-size: clamp(32px, 5vw, 56px); font-weight: 800; line-height: 1.15;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2), var(--cyan));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero .sub {
+  font-size: 17px; color: var(--text2); max-width: 600px; margin: 0 auto 32px;
+}
+.hero .cta {
+  display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+}
+.hero .cta a {
+  padding: 10px 28px; border-radius: 8px; font-size: 14px; font-weight: 600;
+  text-decoration: none; transition: .2s;
+}
+.hero .cta a.primary { background: var(--accent); color: #fff; }
+.hero .cta a.primary:hover { background: var(--accent2); transform: translateY(-1px); }
+.hero .cta a.secondary {
+  background: var(--bg3); color: var(--text); border: 1px solid var(--border);
+}
+.hero .cta a.secondary:hover { border-color: var(--accent); transform: translateY(-1px); }
+.hero .badge-row { margin-top: 24px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.hero .badge-row span {
+  font-size: 12px; padding: 4px 12px; border-radius: 20px;
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
+}
+
+/* CONTENT */
+.content { max-width: 1100px; margin: 0 auto; padding: 56px 32px 80px; }
+.content h2 {
+  font-size: 26px; font-weight: 700; margin: 56px 0 20px;
+  display: flex; align-items: center; gap: 10px;
+}
+.content h2 .hash { color: var(--accent); font-family: var(--mono); font-size: 20px; }
+.content h2::after {
+  content: ''; flex: 1; height: 1px; background: var(--border); margin-left: 16px;
+}
+.content h3 {
+  font-size: 17px; margin: 28px 0 12px; font-weight: 600;
+}
+.content p { color: var(--text2); margin-bottom: 16px; }
+.content a { color: var(--accent2); text-decoration: none; }
+.content a:hover { text-decoration: underline; }
+
+/* CARDS */
+.card-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px; margin: 24px 0;
+}
+.card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 22px; transition: .2s;
+}
+.card:hover { border-color: rgba(99,102,241,.3); }
+.card .icon { font-size: 24px; margin-bottom: 10px; }
+.card h4 { font-size: 15px; margin-bottom: 6px; }
+.card p { font-size: 13px; color: var(--text2); margin-bottom: 0; }
+
+/* PLUGIN CARDS */
+.plugin-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px; margin: 20px 0;
+}
+.plugin-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px; text-align: center; transition: .2s;
+}
+.plugin-card:hover { border-color: rgba(99,102,241,.3); }
+.plugin-card .icon { font-size: 28px; margin-bottom: 8px; }
+.plugin-card .name { font-size: 13px; font-weight: 600; }
+.plugin-card .desc { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+/* ARCHITECTURE */
+.arch {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  padding: 32px; margin: 20px 0; overflow-x: auto;
+}
+.arch pre {
+  font-size: 12px; line-height: 1.6; color: var(--text);
+  font-family: var(--mono); text-align: center;
+}
+
+/* TREE */
+.tree-wrap {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px 24px; font-family: var(--mono); font-size: 12px; line-height: 1.7;
+  margin: 16px 0; overflow-x: auto;
+}
+.tree-wrap .file { color: var(--text2); }
+.tree-wrap .dir { color: var(--accent2); font-weight: 600; }
+.tree-wrap .hl { color: var(--green); }
+.tree-wrap .comment { color: var(--text3); }
+
+/* TECH */
+.tech-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px; margin: 16px 0;
+}
+.tech-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 18px; display: flex; align-items: center; gap: 12px;
+}
+.tech-card .t-icon { font-size: 20px; width: 32px; text-align: center; }
+.tech-card .t-info { }
+.tech-card .t-name { font-size: 13px; font-weight: 600; }
+.tech-card .t-desc { font-size: 11px; color: var(--text2); }
+
+/* PERM TABLE */
+.perm-list { margin: 16px 0; }
+.perm-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 7px 14px; background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 6px; margin-bottom: 5px; font-size: 12px;
+}
+.perm-item code { min-width: 150px; color: var(--accent2); font-size: 11px; }
+.perm-item span { color: var(--text2); font-size: 12px; }
+
+/* STATS */
+.stats {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px; margin: 20px 0;
+}
+.stat {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 18px; text-align: center;
+}
+.stat .num {
+  font-size: 32px; font-weight: 800;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.stat .label { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+/* FOOTER */
+.footer {
+  border-top: 1px solid var(--border); padding: 32px; text-align: center;
+  color: var(--text3); font-size: 13px;
+}
+
+pre { font-family: var(--mono); font-size: 13px; }
+code { font-family: var(--mono); font-size: 13px; }
+p code, li code { background: var(--bg3); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+th { color: var(--text2); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+td { color: var(--text); }
+tr:hover td { background: var(--bg2); }
+
+.info-box {
+  background: rgba(96,165,250,.08); border: 1px solid rgba(96,165,250,.2);
+  border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 13px;
+  color: var(--blue);
+}
+
+@media (max-width: 768px) {
+  .nav .links a:not(.primary) { display: none; }
+  .content { padding: 32px 16px 60px; }
+  .hero { padding: 60px 16px 40px; }
+  .card-grid { grid-template-columns: 1fr; }
+}
+
+@media print {
+  .nav, .theme-btn, .hero .cta { display: none !important; }
+  .hero { padding: 20px; border: none; }
+  .content { padding: 0; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="logo"><a href="index.html">go-database</a> <span>/ docs</span></div>
+  <span class="badge">v0.1.0</span>
+  <div class="links">
+    <a href="index.html">Home</a>
+    <a href="api.html">API</a>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="https://github.com/LangLi7/go-database" target="_blank">GitHub</a>
+    <a href="api.html" class="primary">API Referenz</a>
+    <button class="theme-btn" id="themeBtn" aria-label="Theme">&#9681;</button>
+  </div>
+</nav>
+
+<section class="hero">
+  <h1>go-database</h1>
+  <p class="sub">Universelle Datenbank-Middleware &amp; Management-Plattform.<br>Einheitliche REST-API f&uuml;r 6 Datenbank-Engines mit modernem React-Dashboard.</p>
+  <div class="cta">
+    <a href="api.html" class="primary">API Dokumentation</a>
+    <a href="dashboard.html" class="secondary">Dashboard Guide</a>
+    <a href="#quickstart" class="secondary">Quickstart</a>
+  </div>
+  <div class="badge-row">
+    <span>&#9889; PostgreSQL</span>
+    <span>&#9889; MySQL</span>
+    <span>&#9889; MariaDB</span>
+    <span>&#9889; SQLite</span>
+    <span>&#9889; MongoDB</span>
+    <span>&#9889; Redis</span>
+    <span>Go 1.26</span>
+    <span>React 19</span>
+    <span>Gin</span>
+  </div>
+</section>
+
+<div class="content">
+
+<!-- STATS -->
+<div class="stats">
+  <div class="stat"><div class="num">53</div><div class="label">API Endpoints</div></div>
+  <div class="stat"><div class="num">6</div><div class="label">DB Plugins</div></div>
+  <div class="stat"><div class="num">19</div><div class="label">Permissions</div></div>
+  <div class="stat"><div class="num">9k+</div><div class="label">Go LOC</div></div>
+  <div class="stat"><div class="num">1.8k+</div><div class="label">TS/React LOC</div></div>
+  <div class="stat"><div class="num">1</div><div class="label">Binary</div></div>
+</div>
+
+<!-- VISION -->
+<h2><span class="hash">#</span> Vision</h2>
+<p>
+  go-database ist ein &bdquo;Hafen&ldquo; f&uuml;r Datenbanken &mdash; eine zentrale Schnittstelle
+  zwischen Anwendungen und verschiedenen Datenbanksystemen. Es vereint sechs verschiedene
+  DB-Engines unter einer einzigen REST-API, bietet ein vollwertiges Admin-Dashboard,
+  ein rollenbasiertes Berechtigungssystem und einen Datentransfer zwischen unterschiedlichen
+  Datenbank-Typen &mdash; alles in einer einzigen, portablen Binary.
+</p>
+
+<!-- ARCHITECTURE -->
+<h2><span class="hash">#</span> Architektur</h2>
+<div class="arch">
+<pre>
+                        &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;
+                        &#x2502;    <span style="color:var(--accent2)">React SPA (Ant Design)</span>    &#x2502;
+                        &#x2502;  Dashboard &middot; Explorer &middot; Query   &#x2502;
+                        &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;
+                         <span style="color:var(--text3)">embed.FS</span>      <span style="color:var(--text3)">|</span>              <span style="color:var(--text3)">|</span>
+                    &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;
+                    &#x2502;      <span style="color:var(--green)">Gin HTTP Server</span> (go-database)    &#x2502;
+                    &#x2502;  RequestID &middot; CORS &middot; RateLimit &middot; Auth  &#x2502;
+                    &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;
+                     <span style="color:var(--text3)">|</span>       <span style="color:var(--text3)">|</span>            <span style="color:var(--text3)">|</span>              <span style="color:var(--text3)">|</span>
+          &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;&#x2500;&#x2500;&#x2518;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;
+     <span style="color:var(--yellow)">Handler</span>   <span style="color:var(--yellow)">Auth</span>   <span style="color:var(--yellow)">Guard</span>   <span style="color:var(--yellow)">Suggest</span>   <span style="color:var(--yellow)">Transfer</span>
+          <span style="color:var(--text3)">|</span>         <span style="color:var(--text3)">|</span>         <span style="color:var(--text3)">|</span>         <span style="color:var(--text3)">|</span>         <span style="color:var(--text3)">|</span>
+    &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;
+    &#x2502;   <span style="color:var(--cyan)">Connection Manager</span> + <span style="color:var(--cyan)">Executor</span>  &#x2502;
+    &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;
+                     <span style="color:var(--text3)">|</span>
+    &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;
+    &#x2502;    <span style="color:var(--orange)">Plugin Registry</span> (6 DB-Plugins)      &#x2502;
+    &#x2502;  Postgres &middot; MySQL &middot; MariaDB &middot; SQLite  &#x2502;
+    &#x2502;           MongoDB &middot; Redis           &#x2502;
+    &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;
+</pre>
+</div>
+
+<!-- PROJECT STRUCTURE -->
+<h2><span class="hash">#</span> Projektstruktur</h2>
+<div class="tree-wrap">
+<span class="dir">go-database/</span>
+<span class="file">&#x2502;  cmd/server/main.go</span>         <span class="comment">// Entrypoint: Server, Middleware, Dashboard-Einbettung</span>
+<span class="file">&#x2502;  config/config.yaml</span>           <span class="comment">// Standard-Konfiguration</span>
+<span class="file">&#x2502;  Dockerfile</span>                    <span class="comment">// Multi-Stage: Node + Go + Alpine</span>
+<span class="file">&#x2502;  docker-compose.yml</span>            <span class="comment">// API + 5 Sample-DBs</span>
+<span class="file">&#x2502;  Makefile</span>                      <span class="comment">// build &bull; test &bull; run &bull; clean</span>
+<span class="dir">&#x2502;</span>
+<span class="dir">&#x251C;&#x2500;&#x2500; internal/</span>                    <span class="comment">// Go-Pakete</span>
+<span class="dir">&#x2502;  &#x251C;&#x2500;&#x2500; api/</span>                       <span class="comment">// HTTP-Layer</span>
+<span class="file">&#x2502;  &#x2502;  &#x251C;&#x2500;&#x2500; handler/</span>                <span class="comment">// 11 Handler (auth, connections, explorer, admin, ...)</span>
+<span class="file">&#x2502;  &#x2502;  &#x251C;&#x2500;&#x2500; middleware/</span>              <span class="comment">// Auth, CORS, RequestID, RateLimit</span>
+<span class="file">&#x2502;  &#x2502;  &#x251C;&#x2500;&#x2500; response/</span>                <span class="comment">// Einheitliches Response-Format</span>
+<span class="file">&#x2502;  &#x2502;  &#x2514;&#x2500;&#x2500; router/</span>                  <span class="comment">// 53 Route-Definitionen</span>
+<span class="dir">&#x2502;  &#x251C;&#x2500;&#x2500; auth/</span>                      <span class="comment">// JWT &bull; API-Keys &bull; bcrypt &bull; Permission-Modell</span>
+<span class="dir">&#x2502;  &#x251C;&#x2500;&#x2500; config/</span>                    <span class="comment">// Koanf-Konfiguration (YAML + JSON + Env)</span>
+<span class="dir">&#x2502;  &#x251C;&#x2500;&#x2500; connection/</span>                <span class="comment">// Connection Manager (Pool, Health-Checker)</span>
+<span class="dir">&#x2502;  &#x251C;&#x2500;&#x2500; plugin/</span>                    <span class="comment">// DBPlugin-Interface + Registry</span>
+<span class="dir">&#x2502;  &#x251C;&#x2500;&#x2500; internaldb/</span>                 <span class="comment">// Internes SQLite (Auth, Config, Audit)</span>
+<span class="dir">&#x2502;  &#x251C;&#x2500;&#x2500; guard/</span>                     <span class="comment">// RBAC-Guard: SQL-Kommandoerkennung + Permission-Check</span>
+<span class="dir">&#x2502;  &#x251C;&#x2500;&#x2500; executor/</span>                   <span class="comment">// Risikobewertung + Query-Routing</span>
+<span class="dir">&#x2502;  &#x251C;&#x2500;&#x2500; suggest/</span>                    <span class="comment">// Autocomplete: Trie &bull; Levenshtein &bull; NL-Intents</span>
+<span class="dir">&#x2502;  &#x251C;&#x2500;&#x2500; transfer/</span>                   <span class="comment">// Datentransfer zwischen DBs (Interface)</span>
+<span class="dir">&#x2502;  &#x2514;&#x2500;&#x2500; dashboard/</span>                 <span class="comment">// embed.FS f&uuml;r gebautes Frontend</span>
+<span class="dir">&#x2502;</span>
+<span class="dir">&#x251C;&#x2500;&#x2500; plugins/</span>                     <span class="comment">// 6 DB-Plugin-Implementierungen</span>
+<span class="file">&#x2502;  &#x251C;&#x2500;&#x2500; postgres/</span>                  <span class="comment">// pgx/v5</span>
+<span class="file">&#x2502;  &#x251C;&#x2500;&#x2500; mysql/</span>                     <span class="comment">// go-sql-driver/mysql</span>
+<span class="file">&#x2502;  &#x251C;&#x2500;&#x2500; mariadb/</span>                   <span class="comment">// go-sql-driver/mysql</span>
+<span class="file">&#x2502;  &#x251C;&#x2500;&#x2500; sqlite/</span>                    <span class="comment">// modernc.org/sqlite (CGO-frei)</span>
+<span class="file">&#x2502;  &#x251C;&#x2500;&#x2500; mongodb/</span>                   <span class="comment">// mongo-driver</span>
+<span class="file">&#x2502;  &#x2514;&#x2500;&#x2500; redis/</span>                     <span class="comment">// go-redis/v9</span>
+<span class="dir">&#x2502;</span>
+<span class="dir">&#x251C;&#x2500;&#x2500; web/</span>                         <span class="comment">// React 19 + TypeScript + Vite</span>
+<span class="file">&#x2502;  &#x251C;&#x2500;&#x2500; src/api/</span>                    <span class="comment">// API-Client + Type-Definitionen</span>
+<span class="file">&#x2502;  &#x251C;&#x2500;&#x2500; src/pages/</span>                  <span class="comment">// 8 Seiten (Dashboard, Connections, Explorer, ...)</span>
+<span class="file">&#x2502;  &#x251C;&#x2500;&#x2500; src/context/</span>                <span class="comment">// Dark-Mode + Sprach-Kontext</span>
+<span class="file">&#x2502;  &#x251C;&#x2500;&#x2500; src/i18n/</span>                    <span class="comment">// 96 DE/EN-&Uuml;bersetzungen</span>
+<span class="file">&#x2502;  &#x2514;&#x2500;&#x2500; src/styles/</span>                  <span class="comment">// Globales CSS (Dark-Theme-Fixes)</span>
+<span class="dir">&#x2502;</span>
+<span class="dir">&#x251C;&#x2500;&#x2500; database/</span>                    <span class="comment">// Sample-DBs, Docker, Init-Skripte</span>
+<span class="file">&#x2502;  &#x251C;&#x2500;&#x2500; samples/</span>                   <span class="comment">// Init-SQL f&uuml;r alle 6 DB-Typen</span>
+<span class="file">&#x2502;  &#x251C;&#x2500;&#x2500; external/</span>                  <span class="comment">// Beispielkonfigurationen f&uuml;r externe DBs</span>
+<span class="file">&#x2502;  &#x2514;&#x2500;&#x2500; docker/</span>                    <span class="comment">// Separates docker-compose f&uuml;r Samples</span>
+</div>
+
+<!-- TECH STACK -->
+<h2><span class="hash">#</span> Tech Stack</h2>
+<div class="tech-grid">
+  <div class="tech-card"><div class="t-icon" style="color:var(--blue)">&#9889;</div><div class="t-info"><div class="t-name">Go 1.26</div><div class="t-desc">Backend-Sprache</div></div></div>
+  <div class="tech-card"><div class="t-icon" style="color:var(--accent)">&#9776;</div><div class="t-info"><div class="t-name">Gin</div><div class="t-desc">HTTP-Framework</div></div></div>
+  <div class="tech-card"><div class="t-icon" style="color:var(--cyan)">&#9881;</div><div class="t-info"><div class="t-name">React 19</div><div class="t-desc">Frontend-Framework</div></div></div>
+  <div class="tech-card"><div class="t-icon" style="color:var(--yellow)">&#9733;</div><div class="t-info"><div class="t-name">TypeScript</div><div class="t-desc">Frontend-Sprache</div></div></div>
+  <div class="tech-card"><div class="t-icon" style="color:var(--blue)">&#9783;</div><div class="t-info"><div class="t-name">Vite 6</div><div class="t-desc">Build-Tool</div></div></div>
+  <div class="tech-card"><div class="t-icon" style="color:var(--orange)">&#9670;</div><div class="t-info"><div class="t-name">Ant Design 6</div><div class="t-desc">UI-Library</div></div></div>
+  <div class="tech-card"><div class="t-icon" style="color:var(--green)">&#9776;</div><div class="t-info"><div class="t-name">pgx/v5</div><div class="t-desc">PostgreSQL-Treiber</div></div></div>
+  <div class="tech-card"><div class="t-icon" style="color:var(--red)">&#9829;</div><div class="t-info"><div class="t-name">modernc.org/sqlite</div><div class="t-desc">SQLite (CGO-frei)</div></div></div>
+  <div class="tech-card"><div class="t-icon" style="color:var(--green2)">&#9670;</div><div class="t-info"><div class="t-name">MongoDB Driver</div><div class="t-desc">MongoDB-Treiber</div></div></div>
+  <div class="tech-card"><div class="t-icon" style="color:var(--red)">&#9670;</div><div class="t-info"><div class="t-name">go-redis/v9</div><div class="t-desc">Redis-Treiber</div></div></div>
+  <div class="tech-card"><div class="t-icon" style="color:var(--accent)">&#9776;</div><div class="t-info"><div class="t-name">Koanf</div><div class="t-desc">Konfiguration (YAML/JSON/Env)</div></div></div>
+  <div class="tech-card"><div class="t-icon" style="color:var(--yellow)">&#9881;</div><div class="t-info"><div class="t-name">bcrypt</div><div class="t-desc">Passwort-Hashing</div></div></div>
+  <div class="tech-card"><div class="t-icon" style="color:var(--cyan)">&#9881;</div><div class="t-info"><div class="t-name">AES-256-GCM</div><div class="t-desc">JWT-Verschl&uuml;sselung</div></div></div>
+  <div class="tech-card"><div class="t-icon" style="color:var(--green)">&#9881;</div><div class="t-info"><div class="t-name">embed.FS</div><div class="t-desc">Frontend-Einbettung</div></div></div>
+</div>
+
+<!-- DB PLUGINS -->
+<h2><span class="hash">#</span> Datenbank-Plugins</h2>
+<p>Jeder DB-Typ wird durch ein eigenes Plugin implementiert, das das <code>DBPlugin</code>-Interface erf&uuml;llt &mdash; &uuml;ber die Plugin-Registry automatisch registriert.</p>
+
+<div class="plugin-grid">
+  <div class="plugin-card">
+    <div class="icon" style="color:var(--blue)">&#9733;</div>
+    <div class="name">PostgreSQL</div>
+    <div class="desc">pgx/v5 Pool, information_schema</div>
+  </div>
+  <div class="plugin-card">
+    <div class="icon" style="color:var(--orange)">&#9733;</div>
+    <div class="name">MySQL</div>
+    <div class="desc">go-sql-driver, information_schema</div>
+  </div>
+  <div class="plugin-card">
+    <div class="icon" style="color:var(--green)">&#9733;</div>
+    <div class="name">MariaDB</div>
+    <div class="desc">go-sql-driver, kompatibel mit MySQL</div>
+  </div>
+  <div class="plugin-card">
+    <div class="icon" style="color:var(--red)">&#9733;</div>
+    <div class="name">SQLite</div>
+    <div class="desc">modernc.org (CGO-frei), PRAGMA</div>
+  </div>
+  <div class="plugin-card">
+    <div class="icon" style="color:var(--green2)">&#9733;</div>
+    <div class="name">MongoDB</div>
+    <div class="desc">BSON-Aggregation, Schema-Inference</div>
+  </div>
+  <div class="plugin-card">
+    <div class="icon" style="color:var(--red)">&#9733;</div>
+    <div class="name">Redis</div>
+    <div class="desc">go-redis, KEYS, TYPE/TTL</div>
+  </div>
+</div>
+
+<p>Alle Plugins implementieren: <code>Connect()</code>, <code>Ping()</code>, <code>Close()</code>, <code>Query()</code>, <code>Execute()</code>, <code>Tables()</code>, <code>Schema()</code>, <code>Databases()</code>, <code>CreateDatabase()</code>, <code>DropDatabase()</code>.</p>
+
+<!-- CORE FEATURES -->
+<h2><span class="hash">#</span> Kern-Features</h2>
+<div class="card-grid">
+  <div class="card">
+    <div class="icon">&#9881;</div>
+    <h4>Einheitliche REST-API</h4>
+    <p>53 Endpunkte mit einheitlichem JSON-Response-Format &mdash; <code>{ success, data, error, meta }</code>.</p>
+  </div>
+  <div class="card">
+    <div class="icon">&#9881;</div>
+    <h4>6 DB-Engines</h4>
+    <p>PostgreSQL, MySQL, MariaDB, SQLite, MongoDB, Redis &mdash; erweiterbar via Plugin-Interface.</p>
+  </div>
+  <div class="card">
+    <div class="icon">&#9881;</div>
+    <h4>RBAC Permission-System</h4>
+    <p>19 Permission-Typen, 3 Default-Rollen (admin/developer/readonly), User-Overrides.</p>
+  </div>
+  <div class="card">
+    <div class="icon">&#9881;</div>
+    <h4>JWT + API-Keys</h4>
+    <p>Session (JWT mit AES-256-GCM) und API-Keys (crypto/rand + SHA256 + bcrypt). Login-Rate-Limit.</p>
+  </div>
+  <div class="card">
+    <div class="icon">&#9881;</div>
+    <h4>SQL-Autocomplete</h4>
+    <p>Trie-basiert mit Levenshtein-Fuzzy-Matching, Schema-Aware und Natural-Language-Intents (DE/EN).</p>
+  </div>
+  <div class="card">
+    <div class="icon">&#9881;</div>
+    <h4>Risikobewertung</h4>
+    <p>SQL-Risk-Classifier (LOW/MEDIUM/HIGH), Best&auml;tigung f&uuml;r riskante Queries.</p>
+  </div>
+  <div class="card">
+    <div class="icon">&#9881;</div>
+    <h4>Datentransfer</h4>
+    <p>Cross-DB-Transfer mit auto Schema-Mapping, Dry-Run, Batch-Streaming.</p>
+  </div>
+  <div class="card">
+    <div class="icon">&#9881;</div>
+    <h4>Adaptives Dashboard</h4>
+    <p>React 19 SPA mit responsivem Design, Dark/Light-Mode, DE/EN-i18n, konfigurierbarem Theme.</p>
+  </div>
+  <div class="card">
+    <div class="icon">&#9881;</div>
+    <h4>Single Binary</h4>
+    <p>Frontend via <code>embed.FS</code> im Go-Binary. Keine separaten Dateien zum Deployment n&ouml;tig.</p>
+  </div>
+  <div class="card">
+    <div class="icon">&#9881;</div>
+    <h4>Audit-Logging</h4>
+    <p>Strukturiertes JSON-Logging aller Aktionen mit <code>slog</code> + X-Request-ID-Tracing.</p>
+  </div>
+</div>
+
+<!-- PERMISSIONS -->
+<h2><span class="hash">#</span> Permission-Modell</h2>
+<p>19 Berechtigungen, gruppiert in 5 Kategorien. Jede Rolle definiert einen Satz von Permissions; User-spezifische Overrides sind m&ouml;glich.</p>
+
+<div class="card-grid">
+  <div class="card">
+    <h4 style="color:var(--blue)">Connection</h4>
+    <div class="perm-list" style="margin:0">
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>connections:list</code><span>Verbindungen auflisten</span></div>
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>connections:create</code><span>Neue Verbindungen</span></div>
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>connections:delete</code><span>Verbindungen l&ouml;schen</span></div>
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>connections:query</code><span>SELECT/Browse/Row-CRUD</span></div>
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>connections:execute</code><span>INSERT/UPDATE/DELETE/DDL</span></div>
+    </div>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--green)">Users</h4>
+    <div class="perm-list" style="margin:0">
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>users:list</code><span>Benutzer auflisten</span></div>
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>users:create</code><span>Benutzer anlegen</span></div>
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>users:edit</code><span>Benutzer bearbeiten</span></div>
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>users:delete</code><span>Benutzer l&ouml;schen</span></div>
+    </div>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--yellow)">Administration</h4>
+    <div class="perm-list" style="margin:0">
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>settings:read</code><span>Design lesen</span></div>
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>settings:write</code><span>Design speichern</span></div>
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>traffic:view</code><span>Stats &amp; Activity</span></div>
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>apikeys:manage</code><span>API-Keys verwalten</span></div>
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>roles:manage</code><span>Rollen verwalten</span></div>
+    </div>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--red)">Jobs / Backup</h4>
+    <div class="perm-list" style="margin:0">
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>jobs:list/create/cancel</code><span>Jobs verwalten</span></div>
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>backup:create</code><span>Backup erstellen</span></div>
+      <div class="perm-item" style="padding:4px 10px;font-size:11px"><code>backup:restore</code><span>Backup wiederherstellen</span></div>
+    </div>
+  </div>
+</div>
+
+<table>
+<tr><th>Rolle</th><th>Berechtigungen</th></tr>
+<tr><td><code>admin</code></td><td><code>*</code> (alle)</td></tr>
+<tr><td><code>developer</code></td><td>connections:list/query/execute, users:list, jobs:list/create, traffic:view</td></tr>
+<tr><td><code>readonly</code></td><td>connections:list, connections:query</td></tr>
+</table>
+
+<!-- AUTHENTICATION -->
+<h2><span class="hash">#</span> Authentifizierung</h2>
+<div class="card-grid">
+  <div class="card">
+    <h4>JWT (Session)</h4>
+    <p>Erhalten via <code>POST /auth/login</code> (bcrypt). Token mit AES-256-GCM verschl&uuml;sselt. Konfigurierbare Laufzeit (Default: 60min).</p>
+  </div>
+  <div class="card">
+    <h4>API-Keys</h4>
+    <p>32 Zufallsbytes (crypto/rand), SHA256-gehasst gespeichert. Nur bei Erstellung sichtbar. Perfekt f&uuml;r CI/CD.</p>
+  </div>
+  <div class="card">
+    <h4>Rate-Limiting</h4>
+    <p>5 Fehlversuche am Login blockieren die IP exponentiell (1s, 2s, 3s...). Reset bei erfolgreichem Login.</p>
+  </div>
+</div>
+
+<!-- FRONTEND -->
+<h2><span class="hash">#</span> Frontend &mdash; Dashboard SPA</h2>
+<p>8 Seiten, React 19 + TypeScript + Ant Design. Eingebettet via Go <code>embed.FS</code>.</p>
+
+<div class="card-grid">
+  <div class="card"><h4>Dashboard</h4><p>Startseite mit Statistik-Karten und Verbindungstabelle.</p></div>
+  <div class="card"><h4>Connections</h4><p>DB-Verbindungen verwalten, anlegen, pingen, l&ouml;schen.</p></div>
+  <div class="card"><h4>Explorer</h4><p>Tabellen/Collections browsen, Daten paginiert anzeigen.</p></div>
+  <div class="card"><h4>Query Editor</h4><p>SQL-Editor mit Autocomplete, Risikoanalyse und History.</p></div>
+  <div class="card"><h4>Admin Users</h4><p>Benutzer-CRUD mit Permission-Overrides.</p></div>
+  <div class="card"><h4>Admin Roles</h4><p>Rollen-CRUD mit Permission-Matrix.</p></div>
+  <div class="card"><h4>API Keys</h4><p>API-Keys erstellen, auflisten, widerrufen.</p></div>
+  <div class="card"><h4>Settings</h4><p>Passwort &auml;ndern.</p></div>
+</div>
+
+<!-- QUICKSTART -->
+<h2 id="quickstart"><span class="hash">#</span> Quickstart</h2>
+
+<h3>Docker (empfohlen)</h3>
+<pre>git clone https://github.com/LangLi7/go-database
+cd go-database
+docker compose --profile samples up -d
+# UI: http://localhost:8080
+# Login: admin / admin</pre>
+
+<h3>Lokale Entwicklung</h3>
+<pre># Backend
+go build -o bin/go-database ./cmd/server/
+./bin/go-database
+
+# Frontend (separater Dev-Server)
+cd web
+npm install
+npm run dev        # http://localhost:5173
+
+# Tests
+go test ./internal/... -count=1 -v
+
+# Frontend Build + einbetten
+make build         # baut UI + Server + kopiert dist</pre>
+
+<h3>Konfiguration</h3>
+<pre># config/config.yaml
+server:
+  host: "127.0.0.1"
+  port: 8080
+auth:
+  jwt_secret: "change-me-in-production"
+  token_duration: 60
+
+# Oder via Umgebungsvariablen:
+export GODB_AUTH_JWT_SECRET=mein-geheimer-schluessel
+export GODB_SERVER_PORT=9090</pre>
+
+<div class="info-box">
+  Standard-Login: <code>admin / admin</code>. Vor Produktion unbedingt das Passwort &auml;ndern und <code>jwt_secret</code> setzen!
+</div>
+
+<!-- DEPLOYMENT -->
+<h2><span class="hash">#</span> Deployment</h2>
+<div class="card-grid">
+  <div class="card">
+    <div class="icon">&#9776;</div>
+    <h4>Docker / Docker Compose</h4>
+    <p>Multi-Stage Dockerfile (Node build &rarr; Go build &rarr; Alpine Runtime). Compose inkludiert Sample-DBs.</p>
+  </div>
+  <div class="card">
+    <div class="icon">&#9776;</div>
+    <h4>Single Binary</h4>
+    <p><code>make build</code> erzeugt <code>bin/go-database</code> &mdash; alles enthalten, keine Abh&auml;ngigkeiten.</p>
+  </div>
+  <div class="card">
+    <div class="icon">&#9776;</div>
+    <h4>Plattformen</h4>
+    <p>Linux (Docker + native), Windows (PowerShell + Docker). CGO-freies SQLite f&uuml;r maximale Portabilit&auml;t.</p>
+  </div>
+</div>
+
+<p>Weitere Details &rarr; <a href="api.html">API Referenz</a> &middot; <a href="dashboard.html">Dashboard Guide</a></p>
+
+</div>
+
+<div class="footer">
+  go-database &mdash; MIT License &mdash; Built with Go &amp; React
+</div>
+
+<script>
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const root = document.documentElement
+  const light = root.style.getPropertyValue('--bg') === '#ffffff'
+  root.style.setProperty('--bg', light ? '#0b0d15' : '#ffffff')
+  root.style.setProperty('--bg2', light ? '#12141e' : '#f8f9fc')
+  root.style.setProperty('--bg3', light ? '#191c2a' : '#eef0f6')
+  root.style.setProperty('--border', light ? '#242739' : '#e2e4ec')
+  root.style.setProperty('--text', light ? '#e2e4ee' : '#1a1d2e')
+  root.style.setProperty('--text2', light ? '#8488a0' : '#6b6f82')
+  root.style.setProperty('--text3', light ? '#5a5e76' : '#9ca3af')
+  document.getElementById('themeBtn').textContent = light ? '\u25C1' : '\u263E'
+})
+</script>
+</body>
+</html>

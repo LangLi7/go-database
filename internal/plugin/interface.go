@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"sync"
 )
 
 // DBType describes what kind of database this plugin handles
@@ -95,16 +96,23 @@ type DBPlugin interface {
 }
 
 // registry holds all registered plugins
-var registry = make(map[DBType]func() DBPlugin)
+var (
+	regMu     sync.RWMutex
+	registry  = make(map[DBType]func() DBPlugin)
+)
 
 // Register adds a plugin factory to the registry
 func Register(dbType DBType, factory func() DBPlugin) {
+	regMu.Lock()
 	registry[dbType] = factory
+	regMu.Unlock()
 }
 
 // New creates a new plugin instance by type
 func New(dbType DBType) (DBPlugin, bool) {
+	regMu.RLock()
 	factory, ok := registry[dbType]
+	regMu.RUnlock()
 	if !ok {
 		return nil, false
 	}
@@ -113,6 +121,8 @@ func New(dbType DBType) (DBPlugin, bool) {
 
 // List returns all registered database types
 func List() []DBType {
+	regMu.RLock()
+	defer regMu.RUnlock()
 	types := make([]DBType, 0, len(registry))
 	for t := range registry {
 		types = append(types, t)

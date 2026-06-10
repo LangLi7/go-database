@@ -29,7 +29,7 @@ func GetSuggestions(mgr *connection.Manager) gin.HandlerFunc {
 
 		userID, _ := c.Get("user_id")
 		role, _ := c.Get("role")
-		perms, _ := c.Get("permissions")
+		perms, _ := c.Get("extra_perm")
 
 		permList, _ := perms.([]string)
 		roleStr, _ := role.(string)
@@ -76,12 +76,18 @@ func ExecuteSafe(mgr *connection.Manager) gin.HandlerFunc {
 			return
 		}
 
-		perms, _ := c.Get("permissions")
-		userID, _ := c.Get("user_id")
-		role, _ := c.Get("role")
+		userIDVal, _ := c.Get("user_id")
+		userID, _ := userIDVal.(string)
+		roleVal, _ := c.Get("role")
+		role, _ := roleVal.(string)
+		permsVal, exists := c.Get("extra_perm")
+		var perms []string
+		if exists {
+			perms, _ = permsVal.([]string)
+		}
 
 		g := guard.New()
-		cmd, ok := g.CheckCommand(req.SQL, perms.([]string))
+		cmd, ok := g.CheckCommand(req.SQL, perms)
 		if !ok {
 			response.Error(c, http.StatusForbidden, "PERMISSION_DENIED",
 				"you do not have permission to execute "+string(cmd)+" statements")
@@ -93,9 +99,9 @@ func ExecuteSafe(mgr *connection.Manager) gin.HandlerFunc {
 			ConnectionID: req.ConnectionID,
 			SQL:          req.SQL,
 			ConfirmHigh:  req.ConfirmHigh,
-			UserID:       userID.(string),
-			Role:         role.(string),
-			Permissions:  perms.([]string),
+			UserID:       userID,
+			Role:         role,
+			Permissions:  perms,
 		})
 
 		if result.NeedsConfirm {

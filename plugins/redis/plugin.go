@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -24,7 +25,9 @@ func (p *redisPlugin) Type() plugin.DBType { return plugin.TypeRedis }
 func (p *redisPlugin) Connect(ctx context.Context, cfg plugin.Config) error {
 	db := 0
 	if d, ok := cfg.Params["db"]; ok {
-		fmt.Sscanf(d, "%d", &db)
+		if _, err := fmt.Sscanf(d, "%d", &db); err != nil {
+			slog.Warn("redis: invalid db parameter, using default", "value", d, "error", err)
+		}
 	}
 	client := redis.NewClient(&redis.Options{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
@@ -46,14 +49,23 @@ func (p *redisPlugin) Connect(ctx context.Context, cfg plugin.Config) error {
 }
 
 func (p *redisPlugin) Ping(ctx context.Context) error {
+	if p.client == nil {
+		return fmt.Errorf("redis: not connected")
+	}
 	return p.client.Ping(ctx).Err()
 }
 
 func (p *redisPlugin) Close() error {
+	if p.client == nil {
+		return nil
+	}
 	return p.client.Close()
 }
 
 func (p *redisPlugin) Query(ctx context.Context, q string) (*plugin.Result, error) {
+	if p.client == nil {
+		return nil, fmt.Errorf("redis: not connected")
+	}
 	start := time.Now()
 
 	// Redis: first word is the command, rest are args
@@ -83,6 +95,9 @@ func (p *redisPlugin) Execute(ctx context.Context, q string) (*plugin.Result, er
 }
 
 func (p *redisPlugin) Tables(ctx context.Context) ([]string, error) {
+	if p.client == nil {
+		return nil, fmt.Errorf("redis: not connected")
+	}
 	keys, err := p.client.Keys(ctx, "*").Result()
 	if err != nil {
 		return nil, fmt.Errorf("redis: keys: %w", err)
@@ -94,6 +109,9 @@ func (p *redisPlugin) Tables(ctx context.Context) ([]string, error) {
 }
 
 func (p *redisPlugin) Schema(ctx context.Context) (*plugin.Schema, error) {
+	if p.client == nil {
+		return nil, fmt.Errorf("redis: not connected")
+	}
 	keys, err := p.Tables(ctx)
 	if err != nil {
 		return nil, err
@@ -138,7 +156,9 @@ func (p *redisPlugin) DropDatabase(ctx context.Context, name string) error {
 func (p *redisPlugin) DB() int {
 	db := 0
 	if d, ok := p.cfg.Params["db"]; ok {
-		fmt.Sscanf(d, "%d", &db)
+		if _, err := fmt.Sscanf(d, "%d", &db); err != nil {
+			slog.Warn("redis: invalid db parameter in DB()", "value", d, "error", err)
+		}
 	}
 	return db
 }

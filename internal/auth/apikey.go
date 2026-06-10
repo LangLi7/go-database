@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -28,10 +29,10 @@ type APIKeyService struct {
 
 // KeyStore is the interface for persisting API keys
 type KeyStore interface {
-	SaveKey(key APIKey) error
-	GetKey(prefix string) (*APIKey, error)
-	ListKeys() ([]APIKey, error)
-	DeleteKey(prefix string) error
+	SaveKey(ctx context.Context, key APIKey) error
+	GetKey(ctx context.Context, prefix string) (*APIKey, error)
+	ListKeys(ctx context.Context) ([]APIKey, error)
+	DeleteKey(ctx context.Context, prefix string) error
 }
 
 // NewAPIKeyService creates a new API key service
@@ -40,7 +41,7 @@ func NewAPIKeyService(store KeyStore) *APIKeyService {
 }
 
 // Generate creates a new API key (prefix + raw) and stores the hash
-func (s *APIKeyService) Generate(name string, permissions []string) (string, *APIKey, error) {
+func (s *APIKeyService) Generate(ctx context.Context, name string, permissions []string) (string, *APIKey, error) {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return "", nil, fmt.Errorf("apikey: rand: %w", err)
@@ -57,7 +58,7 @@ func (s *APIKeyService) Generate(name string, permissions []string) (string, *AP
 		Permissions: permissions,
 	}
 
-	if err := s.store.SaveKey(key); err != nil {
+	if err := s.store.SaveKey(ctx, key); err != nil {
 		return "", nil, fmt.Errorf("apikey: save: %w", err)
 	}
 
@@ -65,13 +66,13 @@ func (s *APIKeyService) Generate(name string, permissions []string) (string, *AP
 }
 
 // Validate checks if a raw key is valid and returns the stored key
-func (s *APIKeyService) Validate(rawKey string) (*APIKey, error) {
+func (s *APIKeyService) Validate(ctx context.Context, rawKey string) (*APIKey, error) {
 	if len(rawKey) < keyPrefixLen {
 		return nil, fmt.Errorf("apikey: invalid format")
 	}
 
 	prefix := rawKey[:keyPrefixLen]
-	stored, err := s.store.GetKey(prefix)
+	stored, err := s.store.GetKey(ctx, prefix)
 	if err != nil {
 		return nil, fmt.Errorf("apikey: not found")
 	}
@@ -84,13 +85,13 @@ func (s *APIKeyService) Validate(rawKey string) (*APIKey, error) {
 }
 
 // List returns all stored API keys (without hashes)
-func (s *APIKeyService) List() ([]APIKey, error) {
-	return s.store.ListKeys()
+func (s *APIKeyService) List(ctx context.Context) ([]APIKey, error) {
+	return s.store.ListKeys(ctx)
 }
 
 // Revoke deletes an API key by prefix
-func (s *APIKeyService) Revoke(prefix string) error {
-	return s.store.DeleteKey(prefix)
+func (s *APIKeyService) Revoke(ctx context.Context, prefix string) error {
+	return s.store.DeleteKey(ctx, prefix)
 }
 
 // FormatKey returns a human-readable masked key

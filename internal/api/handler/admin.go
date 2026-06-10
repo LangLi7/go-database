@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -162,8 +163,19 @@ func CreateUser(store *internaldb.Store) gin.HandlerFunc {
 			return
 		}
 
-		userID, _ := c.Get("user_id")
-		_ = store.LogAudit(c.Request.Context(), userID.(string), "user.create", req.Username)
+		userID, exists := c.Get("user_id")
+		if !exists {
+			response.InternalError(c, "user_id not found in context")
+			return
+		}
+		uid, ok := userID.(string)
+		if !ok {
+			response.InternalError(c, "invalid user_id type")
+			return
+		}
+		if err := store.LogAudit(c.Request.Context(), uid, "user.create", req.Username); err != nil {
+			slog.Warn("failed to log user create audit", "user", uid, "error", err)
+		}
 
 		response.Created(c, gin.H{"id": user.ID, "username": user.Username, "role": user.Role})
 	}

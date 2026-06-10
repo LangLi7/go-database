@@ -1,0 +1,66 @@
+{
+  "name": "Company HR",
+  "description": "Mitarbeiterverwaltung mit Abteilungen, Positionen und Hierarchie (Self-Join). Zeigt 1:N-Beziehungen und Self-Referencing.",
+  "version": "1.0",
+  "tables": [
+    {
+      "name": "departments",
+      "comment": "Abteilungen der Firma",
+      "columns": [
+        {"name": "id", "type": "integer", "pk": true, "autoincrement": true},
+        {"name": "name", "type": "text", "notnull": true, "unique": true},
+        {"name": "location", "type": "text", "notnull": false},
+        {"name": "budget", "type": "real", "notnull": false, "default": 0}
+      ],
+      "rows": [
+        {"id": 1, "name": "Engineering", "location": "Berlin", "budget": 500000},
+        {"id": 2, "name": "Marketing", "location": "M\u00fcnchen", "budget": 300000},
+        {"id": 3, "name": "Sales", "location": "Hamburg", "budget": 400000},
+        {"id": 4, "name": "HR", "location": "Berlin", "budget": 150000},
+        {"id": 5, "name": "Finance", "location": "Frankfurt", "budget": 250000}
+      ]
+    },
+    {
+      "name": "employees",
+      "comment": "Mitarbeiter mit Self-Join (manager_id -> employees.id)",
+      "columns": [
+        {"name": "id", "type": "integer", "pk": true, "autoincrement": true},
+        {"name": "first_name", "type": "text", "notnull": true},
+        {"name": "last_name", "type": "text", "notnull": true},
+        {"name": "email", "type": "text", "notnull": true, "unique": true},
+        {"name": "phone", "type": "text", "notnull": false},
+        {"name": "hire_date", "type": "text", "notnull": true},
+        {"name": "salary", "type": "real", "notnull": true},
+        {"name": "department_id", "type": "integer", "notnull": true, "ref": {"table": "departments", "column": "id"}},
+        {"name": "manager_id", "type": "integer", "notnull": false, "ref": {"table": "employees", "column": "id"}}
+      ],
+      "rows": [
+        {"id": 1, "first_name": "Klaus", "last_name": "M\u00fcller", "email": "klaus@firma.de", "phone": "+49 30 1234", "hire_date": "2018-03-01", "salary": 95000, "department_id": 1, "manager_id": null},
+        {"id": 2, "first_name": "Anna", "last_name": "Schmidt", "email": "anna@firma.de", "phone": "+49 30 1235", "hire_date": "2019-06-15", "salary": 75000, "department_id": 1, "manager_id": 1},
+        {"id": 3, "first_name": "Tom", "last_name": "Fischer", "email": "tom@firma.de", "phone": "+49 89 5678", "hire_date": "2020-01-10", "salary": 65000, "department_id": 2, "manager_id": null},
+        {"id": 4, "first_name": "Lisa", "last_name": "Weber", "email": "lisa@firma.de", "phone": "+49 89 5679", "hire_date": "2021-09-01", "salary": 55000, "department_id": 2, "manager_id": 3},
+        {"id": 5, "first_name": "Max", "last_name": "Bauer", "email": "max@firma.de", "phone": "+49 40 9012", "hire_date": "2017-11-20", "salary": 85000, "department_id": 3, "manager_id": null},
+        {"id": 6, "first_name": "Julia", "last_name": "Richter", "email": "julia@firma.de", "phone": null, "hire_date": "2022-04-05", "salary": 45000, "department_id": 4, "manager_id": null},
+        {"id": 7, "first_name": "Peter", "last_name": "Wolf", "email": "peter@firma.de", "phone": "+49 69 3456", "hire_date": "2019-08-12", "salary": 70000, "department_id": 5, "manager_id": null}
+      ]
+    },
+    {
+      "name": "positions",
+      "comment": "Berufsbezeichnungen (1:N zu employees)",
+      "columns": [
+        {"name": "id", "type": "integer", "pk": true, "autoincrement": true},
+        {"name": "employee_id", "type": "integer", "notnull": true, "ref": {"table": "employees", "column": "id"}},
+        {"name": "title", "type": "text", "notnull": true},
+        {"name": "start_date", "type": "text", "notnull": true},
+        {"name": "end_date", "type": "text", "notnull": false}
+      ],
+      "rows": [
+        {"id": 1, "employee_id": 1, "title": "Software Engineer", "start_date": "2018-03-01", "end_date": "2020-06-30"},
+        {"id": 2, "employee_id": 1, "title": "Senior Engineer", "start_date": "2020-07-01", "end_date": null},
+        {"id": 3, "employee_id": 2, "title": "Junior Engineer", "start_date": "2019-06-15", "end_date": null},
+        {"id": 4, "employee_id": 3, "title": "Marketing Manager", "start_date": "2020-01-10", "end_date": null},
+        {"id": 5, "employee_id": 5, "title": "Sales Lead", "start_date": "2017-11-20", "end_date": null}
+      ]
+    }
+  ]
+}

@@ -176,8 +176,7 @@ func (s *Store) DeleteRole(ctx context.Context, id string) error {
 
 // --- Auth: API Keys (KeyStore interface implementation) ---
 
-func (s *Store) SaveKey(k auth.APIKey) error {
-	ctx := context.Background()
+func (s *Store) SaveKey(ctx context.Context, k auth.APIKey) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT OR REPLACE INTO api_keys (prefix, hash, name, permissions, created_at)
 		 VALUES (?, ?, ?, ?, ?)`,
@@ -185,8 +184,7 @@ func (s *Store) SaveKey(k auth.APIKey) error {
 	return err
 }
 
-func (s *Store) GetKey(prefix string) (*auth.APIKey, error) {
-	ctx := context.Background()
+func (s *Store) GetKey(ctx context.Context, prefix string) (*auth.APIKey, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT prefix, hash, name, COALESCE(permissions,''), COALESCE(created_at,'') FROM api_keys WHERE prefix = ?`, prefix)
 	var k auth.APIKey
@@ -199,8 +197,7 @@ func (s *Store) GetKey(prefix string) (*auth.APIKey, error) {
 	return &k, nil
 }
 
-func (s *Store) ListKeys() ([]auth.APIKey, error) {
-	ctx := context.Background()
+func (s *Store) ListKeys(ctx context.Context) ([]auth.APIKey, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT prefix, name, COALESCE(permissions,''), COALESCE(created_at,'') FROM api_keys ORDER BY created_at DESC`)
 	if err != nil {
@@ -222,8 +219,7 @@ func (s *Store) ListKeys() ([]auth.APIKey, error) {
 	return keys, nil
 }
 
-func (s *Store) DeleteKey(prefix string) error {
-	ctx := context.Background()
+func (s *Store) DeleteKey(ctx context.Context, prefix string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM api_keys WHERE prefix = ?`, prefix)
 	return err
 }
@@ -252,8 +248,9 @@ func (s *Store) GetActiveDesign(ctx context.Context) (*DesignConfig, error) {
 
 func (s *Store) SaveDesign(ctx context.Context, dc DesignConfig) error {
 	if dc.Active {
-		// Deactivate all others
-		_, _ = s.db.ExecContext(ctx, `UPDATE design_config SET active = 0`)
+		if _, err := s.db.ExecContext(ctx, `UPDATE design_config SET active = 0`); err != nil {
+			return fmt.Errorf("deactivate designs: %w", err)
+		}
 	}
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO design_config (id, name, config, active, created_at)
@@ -409,7 +406,7 @@ func (s *Store) seed(ctx context.Context) error {
 		if err := s.SaveUser(ctx, admin); err != nil {
 			return fmt.Errorf("internaldb: seed admin: %w", err)
 		}
-		slog.Info("seeded default admin user (password: admin)")
+		slog.Info("seeded default admin user (change password on first login)")
 	}
 
 	return nil

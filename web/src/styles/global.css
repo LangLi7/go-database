@@ -57,3 +57,28 @@ body {
 [data-theme="dark"] body {
   background: #141414;
 }
+
+[data-theme="dark"] .ant-card-head {
+  background: #1f1f1f !important;
+  border-color: #303030 !important;
+}
+
+[data-theme="dark"] .ant-tag {
+  background: #1f1f1f !important;
+}
+
+[data-theme="dark"] .ant-collapse-content {
+  background: #1a1a1a !important;
+}
+
+[data-theme="dark"] .ant-collapse-header {
+  background: #1f1f1f !important;
+}
+
+[data-theme="dark"] .ant-checkbox-wrapper {
+  color: #e0e0e0 !important;
+}
+
+[data-theme="dark"] .ant-select-selection-placeholder {
+  color: #8c8c8c !important;
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -46,14 +47,23 @@ func (p *mariaPlugin) Connect(ctx context.Context, cfg plugin.Config) error {
 }
 
 func (p *mariaPlugin) Ping(ctx context.Context) error {
+	if p.db == nil {
+		return fmt.Errorf("mariadb: not connected")
+	}
 	return p.db.PingContext(ctx)
 }
 
 func (p *mariaPlugin) Close() error {
+	if p.db == nil {
+		return nil
+	}
 	return p.db.Close()
 }
 
 func (p *mariaPlugin) Query(ctx context.Context, q string) (*plugin.Result, error) {
+	if p.db == nil {
+		return nil, fmt.Errorf("mariadb: not connected")
+	}
 	start := time.Now()
 	rows, err := p.db.QueryContext(ctx, q)
 	if err != nil {
@@ -87,12 +97,18 @@ func (p *mariaPlugin) Query(ctx context.Context, q string) (*plugin.Result, erro
 }
 
 func (p *mariaPlugin) Execute(ctx context.Context, q string) (*plugin.Result, error) {
+	if p.db == nil {
+		return nil, fmt.Errorf("mariadb: not connected")
+	}
 	start := time.Now()
 	res, err := p.db.ExecContext(ctx, q)
 	if err != nil {
 		return nil, fmt.Errorf("mariadb: exec: %w", err)
 	}
-	affected, _ := res.RowsAffected()
+	affected, err := res.RowsAffected()
+	if err != nil {
+		slog.Warn("mariadb: failed to get rows affected", "error", err)
+	}
 	return &plugin.Result{
 		RowsAffected: affected,
 		Duration:     time.Since(start).Milliseconds(),
@@ -100,6 +116,9 @@ func (p *mariaPlugin) Execute(ctx context.Context, q string) (*plugin.Result, er
 }
 
 func (p *mariaPlugin) Tables(ctx context.Context) ([]string, error) {
+	if p.db == nil {
+		return nil, fmt.Errorf("mariadb: not connected")
+	}
 	rows, err := p.db.QueryContext(ctx,
 		"SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name")
 	if err != nil {
@@ -119,6 +138,9 @@ func (p *mariaPlugin) Tables(ctx context.Context) ([]string, error) {
 }
 
 func (p *mariaPlugin) Databases(ctx context.Context) ([]string, error) {
+	if p.db == nil {
+		return nil, fmt.Errorf("mariadb: not connected")
+	}
 	rows, err := p.db.QueryContext(ctx, "SHOW DATABASES")
 	if err != nil {
 		return nil, fmt.Errorf("mariadb: list databases: %w", err)
@@ -136,6 +158,9 @@ func (p *mariaPlugin) Databases(ctx context.Context) ([]string, error) {
 }
 
 func (p *mariaPlugin) CreateDatabase(ctx context.Context, name string) error {
+	if p.db == nil {
+		return fmt.Errorf("mariadb: not connected")
+	}
 	_, err := p.db.ExecContext(ctx, fmt.Sprintf("CREATE DATABASE `%s`", name))
 	if err != nil {
 		return fmt.Errorf("mariadb: create database: %w", err)
@@ -144,6 +169,9 @@ func (p *mariaPlugin) CreateDatabase(ctx context.Context, name string) error {
 }
 
 func (p *mariaPlugin) DropDatabase(ctx context.Context, name string) error {
+	if p.db == nil {
+		return fmt.Errorf("mariadb: not connected")
+	}
 	_, err := p.db.ExecContext(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", name))
 	if err != nil {
 		return fmt.Errorf("mariadb: drop database: %w", err)
@@ -152,6 +180,9 @@ func (p *mariaPlugin) DropDatabase(ctx context.Context, name string) error {
 }
 
 func (p *mariaPlugin) Schema(ctx context.Context) (*plugin.Schema, error) {
+	if p.db == nil {
+		return nil, fmt.Errorf("mariadb: not connected")
+	}
 	tables, err := p.Tables(ctx)
 	if err != nil {
 		return nil, err
@@ -160,8 +191,10 @@ func (p *mariaPlugin) Schema(ctx context.Context) (*plugin.Schema, error) {
 	var schema plugin.Schema
 	for _, tbl := range tables {
 		info := plugin.TableInfo{Name: tbl}
-		_ = p.db.QueryRowContext(ctx,
-			"SELECT COUNT(*) FROM `"+tbl+"`").Scan(&info.RowCount)
+		if err := p.db.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM `"+tbl+"`").Scan(&info.RowCount); err != nil {
+			slog.Warn("mariadb: failed to get row count", "table", tbl, "error", err)
+		}
 
 		rows, err := p.db.QueryContext(ctx, `
 			SELECT column_name, column_type, is_nullable, COALESCE(column_default, '')

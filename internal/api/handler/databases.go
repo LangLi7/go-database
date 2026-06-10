@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,8 +21,8 @@ func CreateStandaloneDatabase(mgr *connection.Manager) gin.HandlerFunc {
 			Type string `json:"type" binding:"required"`
 			Name string `json:"name" binding:"required"`
 		}
-		if err := c.ShouldBindJSON(&req); err != nil {
-			response.BadRequest(c, "type and name required")
+		if err := c.BindJSON(&req); err != nil {
+			response.BadRequest(c, "type and name required: "+err.Error())
 			return
 		}
 
@@ -31,125 +32,129 @@ func CreateStandaloneDatabase(mgr *connection.Manager) gin.HandlerFunc {
 			return
 		}
 
-		storageDir := filepath.Join("database", "storage", req.Type)
+		dbType := strings.ToLower(req.Type)
+		storageDir := filepath.Join("database", "storage", dbType)
 		if err := os.MkdirAll(storageDir, 0755); err != nil {
-			response.InternalError(c, "failed to create storage directory")
+			response.InternalError(c, "cannot create storage directory")
 			return
 		}
 
-		switch req.Type {
+		var (
+			conn      *connection.Connection
+			cfg       plugin.Config
+			source    string
+		)
+
+		switch dbType {
 		case "sqlite":
 			dbPath := filepath.Join(storageDir, req.Name+".db")
-			conn, err := mgr.Add(c.Request.Context(), req.Name, "sqlite", "local", plugin.Config{
+			cfg = plugin.Config{
 				Host:     dbPath,
 				FilePath: dbPath,
 				Database: req.Name,
-			}, nil)
+			}
+			source = "local"
+			var err error
+			conn, err = mgr.Add(c.Request.Context(), req.Name, "sqlite", source, cfg, nil)
 			if err != nil {
 				response.InternalError(c, "failed to create connection: "+err.Error())
 				return
 			}
 
-			if err := seedSampleSchema(mgr, conn.ID, req.Name, req.Type); err != nil {
-				response.Success(c, gin.H{
-					"connection": conn,
-					"warning":    "database created but sample schema failed: " + err.Error(),
-				})
+		default:
+			host := "localhost"
+			port := defaultPort(dbType)
+			cfg = plugin.Config{
+				Host:     host,
+				Port:     port,
+				Database: req.Name,
+				User:     defaultUser(dbType),
+				Password: "",
+			}
+			source = "local"
+			var err error
+			conn, err = mgr.Add(c.Request.Context(), req.Name, plugin.DBType(dbType), source, cfg, nil)
+			if err != nil {
+				response.InternalError(c, "failed to create connection: "+err.Error())
 				return
 			}
-
-			response.Created(c, gin.H{
-				"connection": conn,
-				"path":       dbPath,
-				"type":       req.Type,
-			})
-
-		default:
-			response.BadRequest(c, fmt.Sprintf("standalone creation not supported for type: %s", req.Type))
 		}
+
+		// Seed sample schema (only for SQLite, other types need running server)
+		if err := seedSampleSchema(c.Request.Context(), mgr, conn.ID, dbType); err != nil {
+			response.Success(c, gin.H{
+				"connection": conn,
+				"warning":    "connection created but sample schema could not be loaded: " + err.Error(),
+				"hint":       fmt.Sprintf("Make sure %s is running on localhost:%d, then use the query editor to run your own schema.", dbType, defaultPort(dbType)),
+			})
+			return
+		}
+
+		response.Created(c, gin.H{
+			"connection": conn,
+			"type":       dbType,
+			"path":       fmt.Sprintf("database/storage/%s/%s.db", dbType, req.Name),
+		})
 	}
 }
 
-func seedSampleSchema(mgr *connection.Manager, connID, dbName, dbType string) error {
+func defaultPort(dbType string) int {
+	switch dbType {
+	case "postgres":
+		return 5432
+	case "mysql":
+		return 3306
+	case "mariadb":
+		return 3307
+	case "mongodb":
+		return 27017
+	case "redis":
+		return 6379
+	default:
+		return 0
+	}
+}
+
+func defaultUser(dbType string) string {
+	switch dbType {
+	case "postgres":
+		return "postgres"
+	case "mysql", "mariadb":
+		return "root"
+	case "mongodb":
+		return ""
+	default:
+		return ""
+	}
+}
+
+func seedSampleSchema(ctx context.Context, mgr *connection.Manager, connID, dbType string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if _, err := mgr.Ping(ctx, connID); err != nil {
+		return fmt.Errorf("server not reachable: %w", err)
+	}
+
 	samples := map[string]string{
-		"sqlite": `CREATE TABLE IF NOT EXISTS users (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	name TEXT NOT NULL,
-	email TEXT UNIQUE NOT NULL,
-	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE IF NOT EXISTS projects (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	name TEXT NOT NULL,
-	description TEXT,
-	user_id INTEGER REFERENCES users(id),
-	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-INSERT OR IGNORE INTO users (id, name, email) VALUES
-(1, 'Alice Johnson', 'alice@example.com'),
-(2, 'Bob Smith', 'bob@example.com');
-INSERT OR IGNORE INTO projects (id, name, description, user_id) VALUES
-(1, 'Website Redesign', 'Complete redesign of company website', 1),
-(2, 'Mobile App', 'iOS and Android app development', 2);`,
-		"postgres": `CREATE TABLE IF NOT EXISTS users (
-	id SERIAL PRIMARY KEY,
-	name VARCHAR(255) NOT NULL,
-	email VARCHAR(255) UNIQUE NOT NULL,
-	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE IF NOT EXISTS projects (
-	id SERIAL PRIMARY KEY,
-	name VARCHAR(255) NOT NULL,
-	description TEXT,
-	user_id INTEGER REFERENCES users(id),
-	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-INSERT INTO users (name, email) VALUES
-('Alice Johnson', 'alice@example.com'),
-('Bob Smith', 'bob@example.com')
-ON CONFLICT DO NOTHING;
-INSERT INTO projects (name, description, user_id) VALUES
-('Website Redesign', 'Complete redesign of company website', 1),
-('Mobile App', 'iOS and Android app development', 2)
-ON CONFLICT DO NOTHING;`,
-		"mysql": `CREATE TABLE IF NOT EXISTS users (
-	id INT AUTO_INCREMENT PRIMARY KEY,
-	name VARCHAR(255) NOT NULL,
-	email VARCHAR(255) UNIQUE NOT NULL,
-	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE IF NOT EXISTS projects (
-	id INT AUTO_INCREMENT PRIMARY KEY,
-	name VARCHAR(255) NOT NULL,
-	description TEXT,
-	user_id INT REFERENCES users(id),
-	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-INSERT IGNORE INTO users (name, email) VALUES
-('Alice Johnson', 'alice@example.com'),
-('Bob Smith', 'bob@example.com');
-INSERT IGNORE INTO projects (name, description, user_id) VALUES
-('Website Redesign', 'Complete redesign of company website', 1),
-('Mobile App', 'iOS and Android app development', 2);`,
-		"mariadb": `CREATE TABLE IF NOT EXISTS users (
-	id INT AUTO_INCREMENT PRIMARY KEY,
-	name VARCHAR(255) NOT NULL,
-	email VARCHAR(255) UNIQUE NOT NULL,
-	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE IF NOT EXISTS projects (
-	id INT AUTO_INCREMENT PRIMARY KEY,
-	name VARCHAR(255) NOT NULL,
-	description TEXT,
-	user_id INT REFERENCES users(id),
-	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-INSERT IGNORE INTO users (name, email) VALUES
-('Alice Johnson', 'alice@example.com'),
-('Bob Smith', 'bob@example.com');
-INSERT IGNORE INTO projects (name, description, user_id) VALUES
-('Website Redesign', 'Complete redesign of company website', 1),
-('Mobile App', 'iOS and Android app development', 2);`,
+		"sqlite": `CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT UNIQUE NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, user_id INTEGER REFERENCES users(id), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+INSERT OR IGNORE INTO users (id, name, email) VALUES (1, 'Alice Johnson', 'alice@example.com'), (2, 'Bob Smith', 'bob@example.com');
+INSERT OR IGNORE INTO projects (id, name, description, user_id) VALUES (1, 'Website Redesign', 'Complete redesign of company website', 1), (2, 'Mobile App', 'iOS and Android app development', 2);`,
+		"postgres": `CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, email VARCHAR(255) UNIQUE NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS projects (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT, user_id INTEGER REFERENCES users(id), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+INSERT INTO users (name, email) VALUES ('Alice Johnson', 'alice@example.com'), ('Bob Smith', 'bob@example.com') ON CONFLICT DO NOTHING;
+INSERT INTO projects (name, description, user_id) VALUES ('Website Redesign', 'Complete redesign of company website', 1), ('Mobile App', 'iOS and Android app development', 2) ON CONFLICT DO NOTHING;`,
+		"mysql": `CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL, email VARCHAR(255) UNIQUE NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS projects (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT, user_id INT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+INSERT IGNORE INTO users (name, email) VALUES ('Alice Johnson', 'alice@example.com'), ('Bob Smith', 'bob@example.com');
+INSERT IGNORE INTO projects (name, description, user_id) VALUES ('Website Redesign', 'Complete redesign of company website', 1), ('Mobile App', 'iOS and Android app development', 2);`,
+		"mariadb": `CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL, email VARCHAR(255) UNIQUE NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS projects (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT, user_id INT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+INSERT IGNORE INTO users (name, email) VALUES ('Alice Johnson', 'alice@example.com'), ('Bob Smith', 'bob@example.com');
+INSERT IGNORE INTO projects (name, description, user_id) VALUES ('Website Redesign', 'Complete redesign of company website', 1), ('Mobile App', 'iOS and Android app development', 2);`,
+		"mongodb": `db.users.insertMany([{name:'Alice Johnson',email:'alice@example.com',created_at:new Date()},{name:'Bob Smith',email:'bob@example.com',created_at:new Date()}]);`,
+		"redis":   `SET user:1:name "Alice Johnson"\r\nSET user:2:name "Bob Smith"`,
 	}
 
 	sql, ok := samples[dbType]
@@ -157,17 +162,16 @@ INSERT IGNORE INTO projects (name, description, user_id) VALUES
 		return fmt.Errorf("no sample schema for type: %s", dbType)
 	}
 
-	// Execute seed SQL in batches per statement
 	stmts := splitSQL(sql)
-	ctx := context.Background()
 	for _, stmt := range stmts {
+		stmt = strings.TrimSpace(stmt)
 		if stmt == "" {
 			continue
 		}
 		if _, err := mgr.Execute(ctx, connID, stmt); err != nil {
 			return fmt.Errorf("seed error: %w", err)
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 	return nil
 }
@@ -182,7 +186,7 @@ func splitSQL(sql string) []string {
 			current = ""
 		}
 	}
-	if current != "" {
+	if strings.TrimSpace(current) != "" {
 		stmts = append(stmts, current)
 	}
 	return stmts

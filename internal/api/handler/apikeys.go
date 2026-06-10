@@ -16,7 +16,7 @@ type createAPIKeyRequest struct {
 // ListAPIKeys returns all API keys (without hashes)
 func ListAPIKeys(store *internaldb.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		keys, err := store.ListKeys()
+		keys, err := store.ListKeys(c.Request.Context())
 		if err != nil {
 			response.InternalError(c, "failed to list API keys")
 			return
@@ -53,7 +53,7 @@ func CreateAPIKey(store *internaldb.Store) gin.HandlerFunc {
 		}
 
 		svc := auth.NewAPIKeyService(store)
-		rawKey, stored, err := svc.Generate(req.Name, req.Permissions)
+		rawKey, stored, err := svc.Generate(c.Request.Context(), req.Name, req.Permissions)
 		if err != nil {
 			response.InternalError(c, "failed to generate API key")
 			return
@@ -73,7 +73,7 @@ func CreateAPIKey(store *internaldb.Store) gin.HandlerFunc {
 func DeleteAPIKey(store *internaldb.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		svc := auth.NewAPIKeyService(store)
-		if err := svc.Revoke(c.Param("prefix")); err != nil {
+		if err := svc.Revoke(c.Request.Context(), c.Param("prefix")); err != nil {
 			response.NotFound(c, "API key not found")
 			return
 		}

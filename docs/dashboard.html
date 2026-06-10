@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>go-database Dashboard</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --bg2: #161822;
+  --bg3: #1c1f2e;
+  --border: #252836;
+  --text: #e4e6f0;
+  --text2: #8b8fa3;
+  --accent: #6366f1;
+  --accent2: #818cf8;
+  --green: #34d399;
+  --red: #f87171;
+  --yellow: #fbbf24;
+  --blue: #60a5fa;
+  --cyan: #22d3ee;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  font-size: 15px;
+}
+
+.header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(15,17,23,.85); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px; height: 60px;
+  display: flex; align-items: center; gap: 16px;
+}
+.header .logo { font-weight: 700; font-size: 18px; color: var(--accent); }
+.header .logo span { color: var(--text2); font-weight: 400; }
+.header .badge {
+  font-size: 11px; background: var(--accent); color: #fff;
+  padding: 2px 8px; border-radius: 4px; font-weight: 600;
+}
+.header .nav-links {
+  margin-left: auto; display: flex; gap: 12px; align-items: center;
+}
+.header .nav-links a {
+  color: var(--text2); text-decoration: none; font-size: 13px;
+  padding: 6px 12px; border-radius: 6px; transition: .2s;
+}
+.header .nav-links a:hover, .header .nav-links a.active { color: var(--text); background: var(--bg3); }
+.theme-toggle {
+  background: none; border: 1px solid var(--border); color: var(--text2);
+  width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+  transition: .2s;
+}
+.theme-toggle:hover { background: var(--bg3); color: var(--text); }
+
+.wrapper { display: flex; margin-top: 60px; min-height: calc(100vh - 60px); }
+.sidebar {
+  position: fixed; top: 60px; left: 0; bottom: 0; width: 260px;
+  overflow-y: auto; padding: 24px 0; border-right: 1px solid var(--border);
+  background: var(--bg);
+}
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.sidebar .section { margin-bottom: 20px; }
+.sidebar .section-title {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text2); padding: 0 20px 8px; font-weight: 600;
+}
+.sidebar a {
+  display: block; padding: 6px 20px; font-size: 13px;
+  color: var(--text2); text-decoration: none; transition: .15s;
+  border-left: 2px solid transparent;
+}
+.sidebar a:hover { color: var(--text); background: var(--bg2); }
+.sidebar a.active {
+  color: var(--accent2); border-left-color: var(--accent);
+  background: rgba(99,102,241,.08);
+}
+
+.content { margin-left: 260px; flex: 1; padding: 40px 56px; max-width: 960px; }
+
+/* Screenshot placeholder */
+.screenshot {
+  background: linear-gradient(135deg, var(--bg3), var(--bg2));
+  border: 1px solid var(--border);
+  border-radius: 12px; padding: 60px 40px; text-align: center;
+  margin: 24px 0;
+}
+.screenshot .icon { font-size: 48px; margin-bottom: 12px; }
+.screenshot p { color: var(--text2); font-size: 14px; }
+.screenshot .file { font-family: var(--mono); font-size: 12px; color: var(--text2); margin-top: 8px; }
+
+/* Card grid demo */
+.card-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px; margin: 24px 0;
+}
+.card-grid .card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 20px; transition: .2s;
+}
+.card-grid .card:hover { border-color: rgba(99,102,241,.3); }
+.card-grid .card .num {
+  font-size: 28px; font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.card-grid .card .label { color: var(--text2); font-size: 13px; margin-top: 4px; display: flex; align-items: center; gap: 6px; }
+.card-grid .card .icon { font-size: 18px; }
+
+.content h1 {
+  font-size: 32px; margin-bottom: 8px;
+  background: linear-gradient(135deg,var(--accent),var(--accent2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.content .subtitle { color: var(--text2); margin-bottom: 40px; font-size: 15px; }
+.content h2 {
+  font-size: 22px; margin: 48px 0 16px; padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.content h3 { font-size: 17px; margin: 32px 0 12px; }
+.content p { margin-bottom: 16px; color: var(--text2); }
+.content a { color: var(--accent2); text-decoration: none; }
+.content a:hover { text-decoration: underline; }
+
+pre {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  padding: 16px 20px; overflow-x: auto; font-family: var(--mono);
+  font-size: 13px; line-height: 1.5; margin: 12px 0;
+}
+code { font-family: var(--mono); font-size: 13px; }
+p code, li code { background: var(--bg3); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+table {
+  width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;
+}
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+th { color: var(--text2); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+td { color: var(--text); }
+tr:hover td { background: var(--bg2); }
+
+.info-box {
+  background: rgba(96,165,250,.08); border: 1px solid rgba(96,165,250,.2);
+  border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 13px;
+  color: var(--blue);
+}
+.warning-box {
+  background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.2);
+  border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 13px;
+  color: var(--yellow);
+}
+
+.feature-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 24px; margin-bottom: 20px;
+}
+.feature-card h4 { font-size: 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.feature-card p { font-size: 14px; margin-bottom: 0; }
+.feature-card ul { margin: 8px 0 0 20px; color: var(--text2); font-size: 13px; }
+.feature-card ul li { margin-bottom: 4px; }
+
+.flow {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 16px; background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; margin: 16px 0; font-size: 13px;
+}
+.flow .step {
+  background: var(--bg3); border: 1px solid var(--border);
+  padding: 6px 14px; border-radius: 6px; color: var(--text);
+  font-family: var(--mono); font-size: 12px;
+}
+.flow .arrow { color: var(--text2); font-size: 16px; }
+
+.menu-toggle {
+  display: none; background: none; border: none; color: var(--text);
+  font-size: 24px; cursor: pointer; padding: 4px;
+}
+@media (max-width: 768px) {
+  .menu-toggle { display: block; }
+  .sidebar {
+    transform: translateX(-100%); transition: transform .3s ease;
+    z-index: 99; width: 280px;
+  }
+  .sidebar.open { transform: translateX(0); }
+  .sidebar-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 98;
+    display: none;
+  }
+  .sidebar-backdrop.open { display: block; }
+  .content { margin-left: 0; padding: 24px 20px; }
+  .header .nav-links a { display: none; }
+}
+@media print {
+  .sidebar, .header, .menu-toggle, .sidebar-backdrop { display: none !important; }
+  .content { margin-left: 0; padding: 20px; }
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <button class="menu-toggle" id="menuToggle" aria-label="Menü öffnen">&#9776;</button>
+  <div class="logo">go-database <span>Dashboard</span></div>
+  <span class="badge">v0.1.0</span>
+  <nav class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="api.html">API</a>
+    <a href="dashboard.html" class="active">Dashboard</a>
+    <button class="theme-toggle" id="themeToggle" aria-label="Theme umschalten">&#9681;</button>
+  </nav>
+</header>
+
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+<div class="wrapper">
+<nav class="sidebar" id="sidebar">
+  <div class="section">
+    <div class="section-title">Dashboard</div>
+    <a href="#overview">&Uuml;bersicht</a>
+    <a href="#layout">Layout & Struktur</a>
+    <a href="#statistics">Statistik-Karten</a>
+    <a href="#connections-table">Verbindungstabelle</a>
+    <a href="#data-flow">Datenfluss</a>
+    <a href="#routing">Routing</a>
+  </div>
+  <div class="section">
+    <div class="section-title">Technik</div>
+    <a href="#tech-stack">Tech Stack</a>
+    <a href="#embedding">Embedding</a>
+    <a href="#i18n">Internationalisierung</a>
+  </div>
+  <div class="section">
+    <div class="section-title">API</div>
+    <a href="#api-stats">GET /admin/stats</a>
+    <a href="#api-connections">GET /connections</a>
+    <a href="#api-users">GET /admin/users</a>
+  </div>
+</nav>
+
+<main class="content">
+
+<section id="overview">
+<h1>go-database Dashboard</h1>
+<p class="subtitle">
+  Die Dashboard-Seite ist der Startbildschirm der Web-Oberfläche. Sie liefert auf einen Blick alle wichtigen Kennzahlen und den Status der Datenbank-Verbindungen.
+</p>
+
+<div class="screenshot">
+  <div class="icon">&#9681;</div>
+  <p>Dashboard-Ansicht (Dark Theme)</p>
+  <div class="file">web/src/pages/Dashboard.tsx</div>
+</div>
+
+<p>
+  Das Dashboard wird unter der Route <code>/</code> angezeigt und ist die erste Seite, die nach dem Login erscheint. Es kombiniert Statistik-Karten mit einer detaillierten Verbindungstabelle.
+</p>
+</section>
+
+<section id="layout">
+<h2>Layout & Struktur</h2>
+
+<p>Die Dashboard-Seite verwendet ein responsives Grid-Layout und passt sich automatisch an die Bildschirmgröße an:</p>
+
+<div class="card-grid">
+  <div class="card" style="border-color:rgba(99,102,241,.3)">
+    <div class="num">4</div>
+    <div class="label"><span class="icon">&#9632;</span> Statistik-Karten</div>
+  </div>
+  <div class="card" style="border-color:rgba(52,211,153,.3)">
+    <div class="num">3</div>
+    <div class="label"><span class="icon">&#9632;</span> Breakpoints</div>
+  </div>
+  <div class="card" style="border-color:rgba(251,191,36,.3)">
+    <div class="num">n</div>
+    <div class="label"><span class="icon">&#9632;</span> Verbindungen</div>
+  </div>
+</div>
+
+<h3>Responsive Breakpoints</h3>
+<table>
+<tr><th>Viewport</th><th>Karten pro Reihe</th><th>Verhalten</th></tr>
+<tr><td>&ge; 1200px (lg)</td><td>4</td><td>Volle Breite, Sidebar sichtbar</td></tr>
+<tr><td>&ge; 576px (sm)</td><td>2</td><td>Tablet-Layout</td></tr>
+<tr><td>&lt; 576px (xs)</td><td>1</td><td>Mobil-Layout (gestapelt)</td></tr>
+</table>
+
+<p>Der untere Bereich (Verbindungstabelle) ist als <code>Card</code> mit voller Breite realisiert und skaliert ebenfalls responsiv.</p>
+</section>
+
+<section id="statistics">
+<h2>Statistik-Karten</h2>
+
+<p>Vier Kennzahlen-Karten im oberen Bereich geben einen schnellen Überblick:</p>
+
+<div class="card-grid">
+  <div class="card" style="border-left: 3px solid var(--accent)">
+    <div class="num" id="stat-connections">0</div>
+    <div class="label">&#9881; Verbindungen (gesamt)</div>
+  </div>
+  <div class="card" style="border-left: 3px solid var(--green)">
+    <div class="num" id="stat-active">0</div>
+    <div class="label">&#9889; Aktiv (connected)</div>
+  </div>
+  <div class="card" style="border-left: 3px solid var(--yellow)">
+    <div class="num" id="stat-users">0</div>
+    <div class="label">&#9644; Benutzer</div>
+  </div>
+  <div class="card" style="border-left: 3px solid var(--blue)">
+    <div class="num" id="stat-dbs">0</div>
+    <div class="label">&#9776; Datenbanken</div>
+  </div>
+</div>
+
+<table>
+<tr><th>Karte</th><th>Datenquelle</th><th>Icon</th><th>Farbe</th></tr>
+<tr><td>Verbindungen</td><td><code>api.listConnections()</code></td><td><code>ApiOutlined</code></td><td>Indigo</td></tr>
+<tr><td>Aktiv</td><td>Gefiltert: <code>state === 'connected'</code></td><td><code>ThunderboltOutlined</code></td><td>Grün</td></tr>
+<tr><td>Benutzer</td><td><code>api.listUsers()</code></td><td><code>TeamOutlined</code></td><td>Gelb</td></tr>
+<tr><td>Datenbanken</td><td><code>api.listConnections().length</code></td><td><code>DatabaseOutlined</code></td><td>Blau</td></tr>
+</table>
+
+<div class="info-box">
+  Die Karten werden aus denselben API-Daten gespeist wie die Tabelle darunter. Es werden zwei separate API-Aufrufe parallel ausgeführt: <code>listConnections()</code> und <code>listUsers()</code>.
+</div>
+</section>
+
+<section id="connections-table">
+<h2>Verbindungstabelle</h2>
+
+<p>Unter den Statistik-Karten folgt eine vollständige Liste aller registrierten Datenbank-Verbindungen als Ant Design <code>Table</code>-Komponente:</p>
+
+<h3>Spalten</h3>
+<table>
+<tr><th>Spalte</th><th>Typ</th><th>Darstellung</th></tr>
+<tr><td>Name</td><td>string</td><td>Text</td></tr>
+<tr><td>Typ</td><td>string</td><td><code>Tag</code>-Komponente mit Type-Label (z.B. PostgreSQL, MySQL)</td></tr>
+<tr><td>Status</td><td>string</td><td>Farbcodiertes <code>Tag</code>: <span style="color:var(--green)">grün</span>=connected, <span style="color:var(--red)">rot</span>=error, <span style="color:var(--yellow)">orange</span>=disconnected/connecting</td></tr>
+<tr><td>Latenz</td><td>number</td><td>Millisekunden (ms)</td></tr>
+<tr><td>Quelle</td><td>string</td><td>Text (z.B. external, local)</td></tr>
+</table>
+
+<h3>Konfiguration</h3>
+<pre>pagination={false}
+size="small"
+rowKey="id"
+dataSource={connections}</pre>
+
+<p>Die Tabelle verwendet keine clientseitige Paginierung, da die Anzahl der Verbindungen typischerweise klein ist. Der <code>rowKey</code> ist die eindeutige ID der Verbindung.</p>
+</section>
+
+<section id="data-flow">
+<h2>Datenfluss</h2>
+
+<p>Das Dashboard bezieht Daten aus zwei parallelen API-Aufrufen:</p>
+
+<div class="flow">
+  <span class="step">Mount</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step" style="color:var(--blue)}">Promise.all</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step">listConnections()</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step" style="color:var(--green)">setConnections</span>
+</div>
+
+<div class="flow">
+  <span class="step">Mount</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step" style="color:var(--blue)}">Promise.all</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step">listUsers()</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step" style="color:var(--green)">setUsers</span>
+</div>
+
+<p>Beide Requests laufen parallel über <code>Promise.all</code> und setzen nach erfolgreichem Abschluss den <code>loading</code>-State auf <code>false</code>.</p>
+
+<pre>// Vereinfachter Datenfluss
+useEffect(() => {
+  let cancelled = false
+  setLoading(true)
+
+  Promise.all([
+    api.listConnections(),
+    api.listUsers()
+  ]).then(([connRes, userRes]) => {
+    if (cancelled) return
+    if (connRes.success) setConnections(connRes.data || [])
+    if (userRes.success) setUsers(userRes.data || [])
+    setLoading(false)
+  })
+
+  return () => { cancelled = true }
+}, [])</pre>
+
+<h3>Loading-Zustand</h3>
+<p>Während die Daten geladen werden, zeigt ein zentrierter <code>Spin</code>-Loader (Ant Design) an:</p>
+<pre>&lt;Spin size="large" style={{ display: 'block', margin: '80px auto' }} /&gt;</pre>
+</section>
+
+<section id="routing">
+<h2>Routing</h2>
+
+<p>Das Dashboard ist in der <code>App.tsx</code> als Standard-Route registriert:</p>
+
+<pre>// web/src/App.tsx (Auszug)
+&lt;Routes&gt;
+  &lt;Route path="/" element={&lt;Dashboard /&gt;} /&gt;
+  &lt;Route path="/connections" element={&lt;Connections /&gt;} /&gt;
+  &lt;Route path="/explorer" element={&lt;Explorer /&gt;} /&gt;
+  &lt;Route path="/query" element={&lt;QueryEditor /&gt;} /&gt;
+  &lt;Route path="/admin/users" element={&lt;AdminUsers /&gt;} /&gt;
+  &lt;Route path="/admin/roles" element={&lt;AdminRoles /&gt;} /&gt;
+  &lt;Route path="/admin/apikeys" element={&lt;APIKeys /&gt;} /&gt;
+  &lt;Route path="/admin/settings" element={&lt;Settings /&gt;} /&gt;
+  &lt;Route path="*" element={&lt;Navigate to="/" replace /&gt;} /&gt;
+&lt;/Routes&gt;</pre>
+
+<div class="info-box">
+  Alle nicht gefundenen Routen leiten auf das Dashboard (<code>/</code>) weiter. Die gesamte App setzt eine gültige Authentifizierung voraus &mdash; bei fehlendem Token erfolgt eine Weiterleitung zur Login-Seite.
+</div>
+</section>
+
+<section id="tech-stack">
+<h2>Tech Stack</h2>
+
+<table>
+<tr><th>Komponente</th><th>Technologie</th></tr>
+<tr><td>Framework</td><td>React 19</td></tr>
+<tr><td>Sprache</td><td>TypeScript</td></tr>
+<tr><td>UI-Library</td><td>Ant Design 5</td></tr>
+<tr><td>Icons</td><td>@ant-design/icons</td></tr>
+<tr><td>API-Client</td><td>Eigene <code>APIClient</code>-Klasse (<code>web/src/api/client.ts</code>)</td></tr>
+<tr><td>Build-Tool</td><td>Vite 6</td></tr>
+<tr><td>Backend-Serving</td><td>Go <code>embed.FS</code> (kompilierte Dateien in <code>internal/dashboard/dist/</code>)</td></tr>
+</table>
+</section>
+
+<section id="embedding">
+<h2>Embedding & Deployment</h2>
+
+<p>Das gebaute Frontend-Dashboard wird zur Build-Zeit in den Go-Binary eingebettet:</p>
+
+<div class="flow">
+  <span class="step">web/src/</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step">vite build</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step">web/dist/</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step">kopieren nach</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step">internal/dashboard/dist/</span>
+</div>
+
+<pre>// internal/dashboard/embed.go
+package dashboard
+
+import (
+    "embed"
+    "io/fs"
+    "net/http"
+)
+
+//go:embed dist/*
+var distFS embed.FS
+
+func FS() (http.FileSystem, error) {
+    return http.FS(sub), nil
+}</pre>
+
+<p>Im Go-Server werden die Dashboard-Dateien wie folgt ausgeliefert:</p>
+
+<pre>// main.go (Auszug)
+dashFS, _ := dashboard.FS()
+r.StaticFS("/assets", dashFS)
+r.StaticFile("/favicon.svg", ...)
+r.StaticFile("/favicon.ico", ...)
+r.NoRoute(func(c *gin.Context) {
+    if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+        c.JSON(404, gin.H{"error": "not found"})
+        return
+    }
+    c.FileFromFS("index.html", dashFS)
+})</pre>
+
+<div class="info-box">
+  Dadurch ist das gesamte Frontend im finalen Go-Binary enthalten. Es wird keine separate Webserver-Konfiguration oder Datei-Pfad benötigt &mdash; eine einzelne Binary reicht aus.
+</div>
+</section>
+
+<section id="i18n">
+<h2>Internationalisierung</h2>
+
+<p>Das Dashboard unterstützt zwei Sprachen (Englisch und Deutsch) über eine zentrale <code>t()</code>-Funktion:</p>
+
+<table>
+<tr><th>Key</th><th>Englisch</th><th>Deutsch</th></tr>
+<tr><td><code>dashboard.title</code></td><td>Dashboard</td><td>Übersicht</td></tr>
+<tr><td><code>dashboard.connections</code></td><td>Connections</td><td>Verbindungen</td></tr>
+<tr><td><code>dashboard.active</code></td><td>Active</td><td>Aktiv</td></tr>
+<tr><td><code>dashboard.users</code></td><td>Users</td><td>Benutzer</td></tr>
+<tr><td><code>dashboard.databases</code></td><td>Databases</td><td>Datenbanken</td></tr>
+</table>
+
+<p>Die Sprache wird automatisch anhand des Browsers erkannt und kann vom Benutzer umgeschaltet werden.</p>
+</section>
+
+<section id="api-stats">
+<h2>API-Referenz: Dashboard-Endpunkte</h2>
+
+<p>Das Dashboard verwendet folgende API-Endpunkte:</p>
+
+<div class="feature-card">
+  <h4><span style="color:var(--green)">GET</span> /admin/stats</h4>
+  <p>Liefert Dashboard-Statistiken.</p>
+  <pre>{
+  "connections": 5,
+  "queries": 1234,
+  "users": 3,
+  "databases": 8
+}</pre>
+</div>
+
+<div class="feature-card">
+  <h4><span style="color:var(--green)">GET</span> /connections</h4>
+  <p>Listet alle Verbindungen mit Status und Latenz.</p>
+  <pre>{
+  "data": [
+    {
+      "id": "a1b2c3d4",
+      "name": "Meine DB",
+      "type": "postgres",
+      "state": "connected",
+      "latency_ms": 2
+    }
+  ]
+}</pre>
+</div>
+
+<div class="feature-card">
+  <h4><span style="color:var(--green)">GET</span> /admin/users</h4>
+  <p>Listet alle Benutzer (für die Benutzer-Anzahl).</p>
+</div>
+</section>
+
+</main>
+</div>
+
+<script>
+const menuToggle = document.getElementById('menuToggle')
+const sidebar = document.getElementById('sidebar')
+const backdrop = document.getElementById('sidebarBackdrop')
+
+function toggleSidebar() {
+  sidebar.classList.toggle('open')
+  backdrop.classList.toggle('open')
+}
+menuToggle.addEventListener('click', toggleSidebar)
+backdrop.addEventListener('click', toggleSidebar)
+
+document.querySelectorAll('.sidebar a[href^="#"]').forEach(link => {
+  link.addEventListener('click', () => {
+    if (window.innerWidth <= 768) toggleSidebar()
+  })
+})
+
+document.querySelectorAll('a[href^="#"]').forEach(link => {
+  link.addEventListener('click', e => {
+    const href = link.getAttribute('href')
+    if (href === '#') return
+    e.preventDefault()
+    const target = document.querySelector(href)
+    if (target) target.scrollIntoView({ behavior: 'smooth' })
+  })
+})
+
+const themeToggle = document.getElementById('themeToggle')
+let light = false
+themeToggle.addEventListener('click', () => {
+  light = !light
+  document.documentElement.style.setProperty('--bg', light ? '#ffffff' : '#0f1117')
+  document.documentElement.style.setProperty('--bg2', light ? '#f8f9fc' : '#161822')
+  document.documentElement.style.setProperty('--bg3', light ? '#eef0f6' : '#1c1f2e')
+  document.documentElement.style.setProperty('--border', light ? '#e2e4ec' : '#252836')
+  document.documentElement.style.setProperty('--text', light ? '#1a1d2e' : '#e4e6f0')
+  document.documentElement.style.setProperty('--text2', light ? '#6b6f82' : '#8b8fa3')
+  themeToggle.textContent = light ? '\u263E' : '\u25C1'
+})
+</script>
+</body>
+</html>

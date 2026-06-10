@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -22,7 +23,7 @@ func BrowseTable(mgr *connection.Manager) gin.HandlerFunc {
 		perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "50"))
 		sortBy := c.DefaultQuery("sort", "")
 		sortDir := c.DefaultQuery("dir", "asc")
-		filter := c.Query("filter")
+		filter := sanitizeFilter(c.Query("filter"))
 
 		if page < 1 {
 			page = 1
@@ -87,7 +88,10 @@ func BrowseTable(mgr *connection.Manager) gin.HandlerFunc {
 			countQuery += fmt.Sprintf(" WHERE %s", filter)
 		}
 
-		countResult, _ := mgr.Query(c.Request.Context(), connID, countQuery)
+		countResult, err := mgr.Query(c.Request.Context(), connID, countQuery)
+		if err != nil {
+			slog.Warn("explorer: count query failed", "error", err)
+		}
 		total := 0
 		if countResult != nil && len(countResult.Rows) > 0 {
 			switch v := countResult.Rows[0][0].(type) {
@@ -203,11 +207,61 @@ func DeleteRow(mgr *connection.Manager) gin.HandlerFunc {
 	}
 }
 
+// sanitizeFilter validates that a WHERE clause contains only safe SQL
+func sanitizeFilter(filter string) string {
+	s := strings.TrimSpace(filter)
+	if s == "" {
+		return ""
+	}
+
+	upper := strings.ToUpper(s)
+
+	// Block dangerous SQL keywords
+	dangerous := []string{
+		"DROP ", "DELETE ", "INSERT ", "UPDATE ", "ALTER ", "CREATE ",
+		"TRUNCATE ", "EXEC ", "EXECUTE ", "GRANT ", "REVOKE ",
+		"INTO ", "INFILE ", "LOAD ",
+		"UNION", "INFORMATION_SCHEMA",
+		"SLEEP(", "BENCHMARK(", "SYS.",
+	}
+	for _, kw := range dangerous {
+		if strings.Contains(upper, kw) {
+			return ""
+		}
+	}
+
+	// Block statement separators and comments
+	if strings.ContainsAny(s, ";") ||
+		strings.Contains(s, "--") ||
+		strings.Contains(s, "/*") ||
+		strings.Contains(s, "*/") ||
+		strings.Contains(s, "#") {
+		return ""
+	}
+
+	// Only allow printable ASCII, spaces, and common SQL punctuation
+	// letters, digits, spaces, = < > ! , . ( ) ' _ % * + - / & | ~ : @ [ ]
+	for _, r := range s {
+		if r > 126 || r < 32 {
+			return ""
+		}
+	}
+
+	return s
+}
+
 func quoteTable(name string) string {
 	if name == "" {
 		return name
 	}
-	return fmt.Sprintf(`"%s"`, name)
+	for _, r := range name {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
+			// contains special chars — escape and quote with backticks
+			escaped := strings.ReplaceAll(name, "`", "``")
+			return "`" + escaped + "`"
+		}
+	}
+	return name // simple identifier, no quoting needed
 }
 
 func quoteVal(v any) string {
@@ -226,6 +280,7 @@ func quoteVal(v any) string {
 		}
 		return "0"
 	default:
-		return fmt.Sprintf("'%v'", v)
+		escaped := strings.ReplaceAll(fmt.Sprintf("%v", v), "'", "''")
+		return fmt.Sprintf("'%s'", escaped)
 	}
 }

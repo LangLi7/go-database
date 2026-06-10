@@ -1,34 +1,41 @@
 import { useEffect, useState } from 'react'
-import { Table, Button, Modal, Form, Input, Select, Space, Tag, Typography, message, Popconfirm, Tooltip, Row, Col, Card, Tabs } from 'antd'
-import { PlusOutlined, DeleteOutlined, ReloadOutlined, ApiOutlined, DatabaseOutlined, CodeOutlined, FolderOpenOutlined } from '@ant-design/icons'
+import { Table, Button, Modal, Form, Input, Select, Space, Tag, Typography, message, Popconfirm, Tooltip, Row, Col, Card } from 'antd'
+import { PlusOutlined, DeleteOutlined, ReloadOutlined, ApiOutlined, DatabaseOutlined, FolderOpenOutlined, CloudServerOutlined, LaptopOutlined } from '@ant-design/icons'
 import { api } from '../api/client'
 import { useAppContext } from '../context/AppContext'
 import { t } from '../i18n/translations'
 
 const { Title, Text } = Typography
-const { TextArea } = Input
 
 const DB_TYPES = ['postgres', 'mysql', 'mariadb', 'sqlite', 'mongodb', 'redis']
 
-const TYPE_DEFAULTS: Record<string, { port: number; host: string; db: string; hint: string }> = {
-  postgres: { port: 5432, host: 'localhost', db: 'sampledb', hint: 'PostgreSQL 16+' },
-  mysql: { port: 3306, host: 'localhost', db: 'sampledb', hint: 'MySQL 8+' },
-  mariadb: { port: 3307, host: 'localhost', db: 'sampledb', hint: 'MariaDB 11+' },
-  sqlite: { port: 0, host: '', db: 'mydb', hint: 'SQLite file-based' },
-  mongodb: { port: 27017, host: 'localhost', db: 'sampledb', hint: 'MongoDB 7+' },
-  redis: { port: 6379, host: 'localhost', db: '0', hint: 'Redis 7+' },
+const TYPE_DEFAULTS: Record<string, { port: number; host: string; db: string; hint: string; local: boolean }> = {
+  postgres: { port: 5432, host: 'localhost', db: 'sampledb', hint: 'PostgreSQL 16+', local: true },
+  mysql: { port: 3306, host: 'localhost', db: 'sampledb', hint: 'MySQL 8+', local: true },
+  mariadb: { port: 3307, host: 'localhost', db: 'sampledb', hint: 'MariaDB 11+', local: true },
+  sqlite: { port: 0, host: '', db: 'mydb', hint: 'SQLite file-based', local: false },
+  mongodb: { port: 27017, host: 'localhost', db: 'sampledb', hint: 'MongoDB 7+', local: true },
+  redis: { port: 6379, host: 'localhost', db: '0', hint: 'Redis 7+', local: true },
 }
+
+const SAMPLE_CONNECTIONS = [
+  { name: 'Postgres Sample', type: 'postgres', file: 'postgres_sample.db', desc: 'E-Commerce: users, products, orders' },
+  { name: 'MySQL Sample', type: 'mysql', file: 'mysql_sample.db', desc: 'Blog: users, posts, comments' },
+  { name: 'MariaDB Sample', type: 'mariadb', file: 'mariadb_sample.db', desc: 'Inventory: warehouses, stock, suppliers' },
+  { name: 'SQLite Sample', type: 'sqlite', file: 'sqlite_sample.db', desc: 'Tasks: projects, tasks, tags' },
+  { name: 'MongoDB Sample', type: 'mongodb', file: 'mongodb_sample.db', desc: 'Media: movies, actors, reviews' },
+  { name: 'Redis Sample', type: 'redis', file: 'redis_sample.db', desc: 'Session/Cache/Queue' },
+]
 
 export default function Connections() {
   const { lang } = useAppContext()
   const [connections, setConnections] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
-  const [createDBOpen, setCreateDBOpen] = useState(false)
-  const [dbTab, setDbTab] = useState('standalone')
+  const [addTab, setAddTab] = useState('connect')
   const [form] = Form.useForm()
-  const [dbForm] = Form.useForm()
-  const [standaloneForm] = Form.useForm()
+  const [newDbForm] = Form.useForm()
+  const [selectedNewType, setSelectedNewType] = useState<string>('sqlite')
 
   const load = async () => {
     setLoading(true)
@@ -48,13 +55,28 @@ export default function Connections() {
     })
   }
 
-  const handleCreate = async () => {
-    const vals = await form.validateFields()
-    const r = await api.createConnection(vals)
-    if (r.success) {
+	const handleCreateConnection = async () => {
+		let vals: Record<string, any>
+		try { vals = await form.validateFields() } catch { return }
+		const r = await api.createConnection(vals)
+		if (r.success) {
       message.success(t('conn.created'))
       setModalOpen(false)
       form.resetFields()
+      load()
+    } else {
+      message.error(r.error?.message || 'Failed')
+    }
+  }
+
+	const handleCreateNewDatabase = async () => {
+		let vals: Record<string, any>
+		try { vals = await newDbForm.validateFields() } catch { return }
+		const r = await api.createStandaloneDatabase({ type: vals.type, name: vals.name })
+    if (r.success) {
+      message.success(`Database "${vals.name}" (${vals.type}) created`)
+      setModalOpen(false)
+      newDbForm.resetFields()
       load()
     } else {
       message.error(r.error?.message || 'Failed')
@@ -73,35 +95,21 @@ export default function Connections() {
     else message.error(r.error?.message || 'Ping failed')
   }
 
-  const handleCreateStandalone = async () => {
-    const vals = await standaloneForm.validateFields()
-    const r = await api.createStandaloneDatabase({ type: vals.type, name: vals.name })
-    if (r.success) {
-      message.success(`Database "${vals.name}" (${vals.type}) created`)
-      setCreateDBOpen(false)
-      standaloneForm.resetFields()
-      load()
-    } else {
-      message.error(r.error?.message || 'Failed')
-    }
-  }
-
-  const handleCreateDB = async () => {
-    const vals = await dbForm.validateFields()
-    const r = await api.createDatabase(vals.connection_id, vals.name)
-    if (r.success) {
-      message.success(`Database "${vals.name}" created`)
-      setCreateDBOpen(false)
-      dbForm.resetFields()
-    } else {
-      message.error(r.error?.message || 'Failed')
-    }
+  const handleAddSample = async (sample: typeof SAMPLE_CONNECTIONS[0]) => {
+    const r = await api.createConnection({
+      name: sample.name,
+      type: sample.type,
+      source: 'local',
+      config: { filepath: `database/storage/${sample.type}/${sample.file}`, database: sample.name },
+    })
+    if (r.success) { message.success(`Sample "${sample.name}" added`); load() }
+    else message.error(r.error?.message || 'Failed')
   }
 
   const columns = [
     {
       title: t('conn.name'), dataIndex: 'name', key: 'name',
-      render: (n: string, r: any) => <><ApiOutlined style={{ marginRight: 8, color: '#6366f1' }} /><a onClick={() => handlePing(r.id)}>{n}</a></>
+      render: (n: string, r: any) => <><ApiOutlined style={{ marginRight: 8, color: '#6366f1' }} /><Button type="link" onClick={() => handlePing(r.id)}>{n}</Button></>
     },
     { title: t('conn.type'), dataIndex: 'type', key: 'type', render: (t: string) => <Tag color="blue">{t}</Tag> },
     { title: t('conn.source'), dataIndex: 'source', key: 'source' },
@@ -135,124 +143,149 @@ export default function Connections() {
         </Col>
         <Col>
           <Space>
-            <Button icon={<DatabaseOutlined />} onClick={() => setCreateDBOpen(true)}>{t('conn.create')}</Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true) }}>{t('conn.add')}</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); newDbForm.resetFields(); setAddTab('new'); setModalOpen(true) }}>
+              {lang === 'de' ? 'Neue Datenbank' : 'New Database'}
+            </Button>
+            <Button icon={<CloudServerOutlined />} onClick={() => { form.resetFields(); newDbForm.resetFields(); setAddTab('connect'); setModalOpen(true) }}>
+              {lang === 'de' ? 'Verbinden' : 'Connect'}
+            </Button>
           </Space>
         </Col>
       </Row>
 
-      <Card size="small" style={{ marginBottom: 16, background: '#fafafa' }}>
-        <Space>
-          <CodeOutlined />
-          <Text type="secondary">{t('sample.quickstart_text')}</Text>
-          <Tag style={{ fontFamily: 'monospace', cursor: 'pointer' }}
-            onClick={() => { navigator.clipboard.writeText('docker-compose --profile samples up -d'); message.success('Copied!') }}>
-            {t('sample.docker')}
-          </Tag>
-        </Space>
+      <Card
+        size="small"
+        style={{ marginBottom: 16 }}
+        title={<><DatabaseOutlined /> {lang === 'de' ? 'Beispiel-Datenbanken (lokal)' : 'Sample Databases (local)'}</>}
+      >
+        <Row gutter={[8, 8]}>
+          {SAMPLE_CONNECTIONS.map(s => (
+            <Col key={s.type}>
+              <Tag
+                style={{ cursor: 'pointer', padding: '4px 12px', fontSize: 13 }}
+                color="blue"
+                onClick={() => handleAddSample(s)}
+              >
+                <LaptopOutlined /> {s.name}
+              </Tag>
+            </Col>
+          ))}
+        </Row>
+        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+          {lang === 'de' ? 'Klicke auf eine Beispiel-DB, um sie als Verbindung hinzuzufügen' : 'Click a sample to add it as a connection'}
+        </Text>
       </Card>
 
       <Table dataSource={connections} columns={columns} rowKey="id" loading={loading} size="middle" pagination={false} />
 
-      <Modal title={t('conn.add')} open={modalOpen} onOk={handleCreate} onCancel={() => setModalOpen(false)}
-        okText={t('common.create')} cancelText={t('common.cancel')} width={520}>
-        <Form form={form} layout="vertical" initialValues={{ config: { host: 'localhost', port: 5432 } }}>
-          <Form.Item name="name" label={t('conn.form.name')} rules={[{ required: true }]}>
-            <Input placeholder={lang === 'de' ? 'Meine Datenbank' : 'My Database'} />
-          </Form.Item>
-          <Form.Item name="type" label={t('conn.type')} rules={[{ required: true }]}>
-            <Select
-              options={DB_TYPES.map(t => ({
-                label: `${t.charAt(0).toUpperCase() + t.slice(1)} (${TYPE_DEFAULTS[t]?.hint || ''})`,
-                value: t
-              }))}
-              onChange={handleTypeChange}
-            />
-          </Form.Item>
-          <Form.Item name="source" label={t('conn.form.source')} rules={[{ required: true }]}>
-            <Input placeholder={t('conn.example.source')} />
-          </Form.Item>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name={['config', 'host']} label={t('conn.form.host')}>
-                <Input placeholder={t('conn.example.host')} />
+      <Modal
+        title={addTab === 'new'
+          ? (lang === 'de' ? 'Neue Datenbank erstellen' : 'Create New Database')
+          : (lang === 'de' ? 'Verbindung hinzufügen' : 'Add Connection')}
+        open={modalOpen}
+        onCancel={() => { setModalOpen(false); form.resetFields(); newDbForm.resetFields() }}
+        footer={null}
+        width={520}
+      >
+        {addTab === 'connect' ? (
+          <>
+            <div style={{ marginBottom: 16, padding: '8px 12px', background: '#e6f7ff', borderRadius: 6 }}>
+              <Text><CloudServerOutlined style={{ marginRight: 6 }} />
+                {lang === 'de'
+                  ? 'Verbinde zu einer bestehenden Datenbank (Postgres, MySQL, etc.)'
+                  : 'Connect to an existing database (Postgres, MySQL, etc.)'}
+              </Text>
+            </div>
+            <Form form={form} layout="vertical" initialValues={{ config: { host: 'localhost', port: 5432 } }}>
+              <Form.Item name="name" label={t('conn.form.name')} rules={[{ required: true }]}>
+                <Input placeholder={lang === 'de' ? 'Meine Datenbank' : 'My Database'} />
               </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name={['config', 'port']} label={t('conn.form.port')}>
-                <Input type="number" placeholder={t('conn.example.port')} />
+              <Form.Item name="type" label={t('conn.type')} rules={[{ required: true }]}>
+                <Select
+                  options={DB_TYPES.map(t => ({
+                    label: `${t.charAt(0).toUpperCase() + t.slice(1)} (${TYPE_DEFAULTS[t]?.hint || ''})`,
+                    value: t
+                  }))}
+                  onChange={handleTypeChange}
+                />
               </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name={['config', 'database']} label={t('conn.form.database')}>
-            <Input placeholder={lang === 'de' ? 'z.B. sampledb' : 'e.g. sampledb'} />
-          </Form.Item>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name={['config', 'user']} label={t('conn.form.user')}>
-                <Input placeholder={lang === 'de' ? 'z.B. postgres' : 'e.g. postgres'} />
+              <Form.Item name="source" label={t('conn.form.source')} rules={[{ required: true }]}>
+                <Input placeholder={t('conn.example.source')} />
               </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name={['config', 'password']} label={t('conn.form.password')}>
-                <Input.Password placeholder="***" />
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name={['config', 'host']} label={t('conn.form.host')}>
+                    <Input placeholder={t('conn.example.host')} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name={['config', 'port']} label={t('conn.form.port')}>
+                    <Input type="number" placeholder={t('conn.example.port')} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name={['config', 'database']} label={t('conn.form.database')}>
+                <Input placeholder={lang === 'de' ? 'z.B. sampledb' : 'e.g. sampledb'} />
               </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name={['config', 'filepath']} label={t('conn.form.filepath')}>
-            <Input placeholder={lang === 'de' ? 'pfad/zur/datenbank.db' : 'path/to/database.db'} />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      <Modal title={t('conn.create')} open={createDBOpen} onCancel={() => { setCreateDBOpen(false); dbForm.resetFields(); standaloneForm.resetFields() }}
-        footer={null} width={520}>
-        <Tabs activeKey={dbTab} onChange={setDbTab} items={[
-          {
-            key: 'standalone',
-            label: <span><FolderOpenOutlined /> {lang === 'de' ? 'Neue Datenbank' : 'New Database'}</span>,
-            children: (
-              <Form form={standaloneForm} layout="vertical">
-                <Form.Item name="type" label={t('conn.type')} rules={[{ required: true }]}>
-                  <Select
-                    options={DB_TYPES.map(t => ({
-                      label: `${t.charAt(0).toUpperCase() + t.slice(1)} (${TYPE_DEFAULTS[t]?.hint || ''})`,
-                      value: t
-                    }))}
-                    placeholder={lang === 'de' ? 'Typ wählen' : 'Select type'}
-                  />
-                </Form.Item>
-                <Form.Item name="name" label={lang === 'de' ? 'Datenbankname' : 'Database Name'} rules={[{ required: true }]}>
-                  <Input placeholder={lang === 'de' ? 'z.B. meine_db' : 'e.g. my_database'} />
-                </Form.Item>
-                <div style={{ padding: '8px 0', background: '#f5f5f5', borderRadius: 6, marginBottom: 12, paddingLeft: 12 }}>
-                  <Text type="secondary">
-                    <FolderOpenOutlined /> database/storage/{'<type>'}/{'<name>'}
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name={['config', 'user']} label={t('conn.form.user')}>
+                    <Input placeholder={lang === 'de' ? 'z.B. postgres' : 'e.g. postgres'} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name={['config', 'password']} label={t('conn.form.password')}>
+                    <Input.Password placeholder="***" />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name={['config', 'filepath']} label={t('conn.form.filepath')}>
+                <Input placeholder={lang === 'de' ? 'pfad/zur/datenbank.db' : 'path/to/database.db'} />
+              </Form.Item>
+              <Button type="primary" onClick={handleCreateConnection}>{t('common.create')}</Button>
+            </Form>
+          </>
+        ) : (
+          <>
+            <div style={{ marginBottom: 16, padding: '8px 12px', background: '#f6ffed', borderRadius: 6 }}>
+              <Text><FolderOpenOutlined style={{ marginRight: 6 }} />
+                {lang === 'de'
+                  ? 'Erstelle eine neue lokale Datenbank. SQLite wird direkt als Datei angelegt. Für Postgres/MySQL/etc. wird localhost:Port + CREATE DATABASE probiert (Server muss laufen).'
+                  : 'Create a new local database. SQLite creates a file directly. For Postgres/MySQL/etc. attempts localhost:port + CREATE DATABASE (server must be running).'}
+              </Text>
+            </div>
+            <Form form={newDbForm} layout="vertical">
+              <Form.Item name="type" label={t('conn.type')} rules={[{ required: true }]}>
+                <Select
+                  options={DB_TYPES.map(t => ({
+                    label: `${t.charAt(0).toUpperCase() + t.slice(1)} (${TYPE_DEFAULTS[t]?.hint || ''})`,
+                    value: t
+                  }))}
+                  placeholder={lang === 'de' ? 'Typ wählen' : 'Select type'}
+                  onChange={(val) => setSelectedNewType(val)}
+                />
+              </Form.Item>
+              <Form.Item name="name" label={lang === 'de' ? 'Datenbankname' : 'Database Name'} rules={[{ required: true }]}>
+                <Input placeholder={lang === 'de' ? 'z.B. meine_db' : 'e.g. my_database'} />
+              </Form.Item>
+              {selectedNewType === 'sqlite' ? (
+                <div style={{ padding: '8px 12px', background: '#f5f5f5', borderRadius: 6, marginBottom: 12 }}>
+                  <Text style={{ color: '#595959' }}><FolderOpenOutlined /> database/storage/sqlite/{'<name>'}.db</Text>
+                </div>
+              ) : (
+                <div style={{ padding: '8px 12px', background: '#fff7e6', borderRadius: 6, marginBottom: 12 }}>
+                  <Text style={{ color: '#d46b08' }}>
+                    <CloudServerOutlined style={{ marginRight: 6 }} />
+                    {lang === 'de'
+                      ? `${selectedNewType}://localhost:${TYPE_DEFAULTS[selectedNewType]?.port || '??'} – Ein ${selectedNewType}-Server muss lokal laufen`
+                      : `${selectedNewType}://localhost:${TYPE_DEFAULTS[selectedNewType]?.port || '??'} – A ${selectedNewType} server must be running locally`}
                   </Text>
                 </div>
-                <Button type="primary" onClick={handleCreateStandalone}>{t('common.create')}</Button>
-              </Form>
-            ),
-          },
-          {
-            key: 'on_connection',
-            label: <span><ApiOutlined /> {lang === 'de' ? 'Auf Verbindung' : 'On Connection'}</span>,
-            children: (
-              <Form form={dbForm} layout="vertical">
-                <Form.Item name="connection_id" label={t('conn.title')} rules={[{ required: true }]}>
-                  <Select
-                    options={connections.filter(c => c.state === 'connected').map(c => ({ label: `${c.name} (${c.type})`, value: c.id }))}
-                    placeholder={lang === 'de' ? 'Verbindung wählen' : 'Select connection'}
-                  />
-                </Form.Item>
-                <Form.Item name="name" label={lang === 'de' ? 'Datenbankname' : 'Database Name'} rules={[{ required: true }]}>
-                  <Input placeholder={lang === 'de' ? 'z.B. neue_datenbank' : 'e.g. new_database'} />
-                </Form.Item>
-                <Button type="primary" onClick={handleCreateDB}>{t('common.create')}</Button>
-              </Form>
-            ),
-          },
-        ]} />
+              )}
+              <Button type="primary" onClick={handleCreateNewDatabase}>{t('common.create')}</Button>
+            </Form>
+          </>
+        )}
       </Modal>
     </div>
   )

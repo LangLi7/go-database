@@ -18,8 +18,15 @@ import (
 	"go-database/internal/dashboard"
 	"go-database/internal/auth"
 	"go-database/internal/config"
+	_ "go-database/plugins/postgres"
+	_ "go-database/plugins/mysql"
+	_ "go-database/plugins/mariadb"
+	_ "go-database/plugins/sqlite"
+	_ "go-database/plugins/mongodb"
+	_ "go-database/plugins/redis"
 	"go-database/internal/connection"
 	"go-database/internal/internaldb"
+	"go-database/internal/provisioner"
 )
 
 var startTime = time.Now()
@@ -56,15 +63,25 @@ func main() {
 	connMgr.StartHealthChecker(connCtx, 30*time.Second)
 	slog.Info("connection manager ready")
 
+	// ---- Auto-Provisioning (docker / embedded) ----
+	prov := provisioner.New(ctx, connMgr)
+	slog.Info("provisioner ready", "connections", prov.ProvisionedIDs())
+
 	// ---- Auth Services ----
-	jwtSvc := auth.NewJWTService(cfg.Auth.JWTSecret, cfg.Auth.TokenDuration)
-	slog.Info("JWT service ready")
+	jwtSvc, err := auth.NewJWTService(cfg.Auth.JWTSecret, cfg.Auth.TokenDuration)
+	if err != nil {
+		slog.Error("failed to initialize JWT service", "error", err)
+		os.Exit(1)
+	}
+	apikeySvc := auth.NewAPIKeyService(store)
+	slog.Info("token service ready (AES-256-GCM, key stored in ~/.config/go-database/secret.key)")
 
 	// ---- Gin Engine ----
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
+	r.Use(middleware.RequestID())
 	r.Use(gin.Recovery())
-	r.Use(middleware.CORS())
+	r.Use(middleware.CORS(cfg.Server.CORSOrigin))
 	r.Use(requestLogger())
 
 	// ---- Embedded Dashboard (SPA) ----
@@ -88,7 +105,12 @@ func main() {
 				return
 			}
 			defer f.Close()
-			stat, _ := f.Stat()
+			stat, err := f.Stat()
+			if err != nil {
+				slog.Warn("failed to stat index.html", "error", err)
+				c.Next()
+				return
+			}
 			http.ServeContent(c.Writer, c.Request, "index.html", stat.ModTime(), f)
 		})
 		slog.Info("dashboard embedded and serving")
@@ -97,7 +119,7 @@ func main() {
 	}
 
 	// ---- Routes ----
-	router.SetupRoutes(r, store, connMgr, jwtSvc)
+	router.SetupRoutes(r, store, connMgr, jwtSvc, apikeySvc)
 	slog.Info("routes registered")
 
 	// ---- Server ----
@@ -126,6 +148,8 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+
+	prov.Shutdown(shutdownCtx)
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("forced shutdown", "error", err)

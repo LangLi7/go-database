@@ -2,6 +2,7 @@ package suggest
 
 import (
 	"math"
+	"sort"
 	"strings"
 )
 
@@ -103,11 +104,7 @@ type match struct {
 }
 
 func sortMatches(matches []match) {
-	for i := 0; i < len(matches); i++ {
-		for j := i + 1; j < len(matches); j++ {
-			if matches[j].dist < matches[i].dist {
-				matches[i], matches[j] = matches[j], matches[i]
-			}
-		}
-	}
+	sort.Slice(matches, func(i, j int) bool {
+		return matches[i].dist < matches[j].dist
+	})
 }

@@ -193,7 +193,7 @@ func getStatementTemplates(ctx Context) []Suggestion {
 		}
 
 		if containsAny(input, []string{"schema", "structure", "struktur", "spalten"}) {
-			tbl := ctx.CurrentTable
+			tbl := sanitizeIdent(ctx.CurrentTable)
 			if tbl == "" {
 				stmts = append(stmts, Suggestion{
 					Text:        "SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position;",
@@ -214,7 +214,7 @@ func getStatementTemplates(ctx Context) []Suggestion {
 		}
 
 		if canWrite && containsAny(input, []string{"delete", "remove", "löschen", "entfernen"}) {
-			tbl := ctx.CurrentTable
+			tbl := sanitizeIdent(ctx.CurrentTable)
 			if tbl == "" {
 				tbl = "users"
 			}
@@ -274,4 +274,15 @@ func containsAny(s string, substrs []string) bool {
 		}
 	}
 	return false
+}
+
+// sanitizeIdent allows only alphanumeric and underscore characters
+func sanitizeIdent(name string) string {
+	for _, r := range name {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') || r == '_') {
+			return ""
+		}
+	}
+	return name
 }

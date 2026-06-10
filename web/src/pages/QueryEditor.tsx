@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { Card, Select, Button, Input, Table, Space, Typography, message, Tag, Tooltip, Modal, Spin, Badge } from 'antd'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { Card, Select, Button, Input, Table, Space, Typography, message, Tag, Tooltip, Modal, Spin } from 'antd'
 
-import { PlayCircleOutlined, ClearOutlined, HistoryOutlined, BulbOutlined, WarningOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { PlayCircleOutlined, ClearOutlined, HistoryOutlined, WarningOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
 import { api } from '../api/client'
 import { useAppContext } from '../context/AppContext'
 import { t } from '../i18n/translations'
@@ -24,7 +24,7 @@ export default function QueryEditor() {
   const { lang } = useAppContext()
   const [connections, setConnections] = useState<any[]>([])
   const [connId, setConnId] = useState<string>('')
-  const [connName, setConnName] = useState('')
+
   const [sql, setSql] = useState('')
   const [result, setResult] = useState<any>(null)
   const [loading, setLoading] = useState(false)
@@ -39,7 +39,12 @@ export default function QueryEditor() {
   const suggTimerRef = useRef<number>(0)
 
   useEffect(() => {
-    api.listConnections().then(r => { if (r.success) setConnections(r.data || []) })
+    let cancelled = false
+    api.listConnections().then(r => { if (!cancelled && r.success) setConnections(r.data || []) })
+    return () => {
+      cancelled = true
+      if (suggTimerRef.current) clearTimeout(suggTimerRef.current)
+    }
   }, [])
 
   const fetchSuggestions = useCallback(async (input: string) => {
@@ -118,16 +123,16 @@ export default function QueryEditor() {
     setLoading(false)
   }
 
-  const columns = result?.columns?.map((c: string) => ({
+  const columns = useMemo(() => result?.columns?.map((c: string) => ({
     title: c, dataIndex: c, key: c, ellipsis: true,
     render: (v: any) => v === null ? <Text type="secondary">NULL</Text> : String(v),
-  })) || []
+  })) || [], [result])
 
-  const dataSource = result?.rows?.map((row: any[], i: number) => {
+  const dataSource = useMemo(() => result?.rows?.map((row: any[], i: number) => {
     const obj: Record<string, any> = { _key: i }
     result.columns.forEach((col: string, ci: number) => { obj[col] = row[ci] })
     return obj
-  }) || []
+  }) || [], [result])
 
   return (
     <div>
@@ -137,7 +142,7 @@ export default function QueryEditor() {
           placeholder={t('query.select_conn')}
           style={{ width: 300 }}
           value={connId || undefined}
-          onChange={(val, opt: any) => { setConnId(val); setConnName(opt?.label || '') }}
+          onChange={(val) => setConnId(val)}
           options={connections.map(c => ({ label: `${c.name} (${c.type})`, value: c.id }))}
         />
         <Button type="primary" icon={<PlayCircleOutlined />} onClick={handleRun} loading={loading}>{t('query.run')}</Button>

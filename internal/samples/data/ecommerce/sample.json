@@ -1,0 +1,84 @@
+{
+  "name": "E-Commerce",
+  "description": "Online-Shop mit Kunden, Bestellungen, Produkten und Bestellpositionen. Zeigt M:N-Beziehungen (Produkte <-> Bestellungen via order_items) und aggregierte Abfragen.",
+  "version": "1.0",
+  "tables": [
+    {
+      "name": "customers",
+      "comment": "Kunden des Shops",
+      "columns": [
+        {"name": "id", "type": "integer", "pk": true, "autoincrement": true},
+        {"name": "first_name", "type": "text", "notnull": true},
+        {"name": "last_name", "type": "text", "notnull": true},
+        {"name": "email", "type": "text", "notnull": true, "unique": true},
+        {"name": "city", "type": "text", "notnull": false},
+        {"name": "registered_at", "type": "text", "notnull": true}
+      ],
+      "rows": [
+        {"id": 1, "first_name": "Sophie", "last_name": "Schneider", "email": "sophie@mail.de", "city": "Berlin", "registered_at": "2023-01-15"},
+        {"id": 2, "first_name": "Felix", "last_name": "Hoffmann", "email": "felix@mail.de", "city": "K\u00f6ln", "registered_at": "2023-03-22"},
+        {"id": 3, "first_name": "Mona", "last_name": "Lange", "email": "mona@mail.de", "city": "M\u00fcnchen", "registered_at": "2023-06-01"},
+        {"id": 4, "first_name": "Leon", "last_name": "Klein", "email": "leon@mail.de", "city": "Berlin", "registered_at": "2024-02-10"}
+      ]
+    },
+    {
+      "name": "products",
+      "comment": "Produktkatalog",
+      "columns": [
+        {"name": "id", "type": "integer", "pk": true, "autoincrement": true},
+        {"name": "name", "type": "text", "notnull": true},
+        {"name": "category", "type": "text", "notnull": false},
+        {"name": "price", "type": "real", "notnull": true},
+        {"name": "stock", "type": "integer", "notnull": true, "default": 0}
+      ],
+      "rows": [
+        {"id": 1, "name": "Laptop Pro 16", "category": "Electronics", "price": 1499.99, "stock": 15},
+        {"id": 2, "name": "Wireless Mouse", "category": "Electronics", "price": 49.99, "stock": 100},
+        {"id": 3, "name": "USB-C Hub", "category": "Electronics", "price": 79.99, "stock": 42},
+        {"id": 4, "name": "B\u00fcrostuhl Pro", "category": "Furniture", "price": 399.00, "stock": 8},
+        {"id": 5, "name": "LED Lampe", "category": "Lighting", "price": 29.99, "stock": 60},
+        {"id": 6, "name": "Notizbuch Set", "category": "Stationery", "price": 12.50, "stock": 200}
+      ]
+    },
+    {
+      "name": "orders",
+      "comment": "Bestellungen (1:N zu customers)",
+      "columns": [
+        {"name": "id", "type": "integer", "pk": true, "autoincrement": true},
+        {"name": "customer_id", "type": "integer", "notnull": true, "ref": {"table": "customers", "column": "id"}},
+        {"name": "order_date", "type": "text", "notnull": true},
+        {"name": "status", "type": "text", "notnull": true},
+        {"name": "total", "type": "real", "notnull": true, "default": 0}
+      ],
+      "rows": [
+        {"id": 1, "customer_id": 1, "order_date": "2024-03-01", "status": "delivered", "total": 1549.98},
+        {"id": 2, "customer_id": 2, "order_date": "2024-03-15", "status": "delivered", "total": 79.99},
+        {"id": 3, "customer_id": 1, "order_date": "2024-04-10", "status": "pending", "total": 29.99},
+        {"id": 4, "customer_id": 3, "order_date": "2024-04-12", "status": "shipped", "total": 411.49},
+        {"id": 5, "customer_id": 4, "order_date": "2024-05-01", "status": "pending", "total": 1624.48}
+      ]
+    },
+    {
+      "name": "order_items",
+      "comment": "Bestellpositionen (M:N zwischen orders und products)",
+      "columns": [
+        {"name": "id", "type": "integer", "pk": true, "autoincrement": true},
+        {"name": "order_id", "type": "integer", "notnull": true, "ref": {"table": "orders", "column": "id"}},
+        {"name": "product_id", "type": "integer", "notnull": true, "ref": {"table": "products", "column": "id"}},
+        {"name": "quantity", "type": "integer", "notnull": true},
+        {"name": "unit_price", "type": "real", "notnull": true}
+      ],
+      "rows": [
+        {"id": 1, "order_id": 1, "product_id": 1, "quantity": 1, "unit_price": 1499.99},
+        {"id": 2, "order_id": 1, "product_id": 2, "quantity": 1, "unit_price": 49.99},
+        {"id": 3, "order_id": 2, "product_id": 3, "quantity": 1, "unit_price": 79.99},
+        {"id": 4, "order_id": 3, "product_id": 5, "quantity": 1, "unit_price": 29.99},
+        {"id": 5, "order_id": 4, "product_id": 4, "quantity": 1, "unit_price": 399.00},
+        {"id": 6, "order_id": 4, "product_id": 6, "quantity": 1, "unit_price": 12.50},
+        {"id": 7, "order_id": 5, "product_id": 1, "quantity": 1, "unit_price": 1499.99},
+        {"id": 8, "order_id": 5, "product_id": 5, "quantity": 1, "unit_price": 29.99},
+        {"id": 9, "order_id": 5, "product_id": 6, "quantity": 8, "unit_price": 12.50}
+      ]
+    }
+  ]
+}

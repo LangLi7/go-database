@@ -4,10 +4,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// CORS allows cross-origin requests from the dashboard
-func CORS() gin.HandlerFunc {
+// CORS allows cross-origin requests from the specified origin
+func CORS(allowedOrigin string) gin.HandlerFunc {
+	if allowedOrigin == "" {
+		allowedOrigin = "*"
+	}
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		origin := c.Request.Header.Get("Origin")
+		if allowedOrigin == "*" || origin == allowedOrigin {
+			c.Header("Access-Control-Allow-Origin", allowedOrigin)
+		}
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Request-ID")
 		c.Header("Access-Control-Max-Age", "86400")
