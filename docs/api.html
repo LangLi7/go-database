@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>go-database API Referenz</title>
+<style>
+:root {
+  --bg: #0f1117; --bg2: #161822; --bg3: #1c1f2e;
+  --border: #252836; --text: #e4e6f0; --text2: #8b8fa3;
+  --accent: #6366f1; --accent2: #818cf8;
+  --green: #34d399; --red: #f87171; --yellow: #fbbf24; --blue: #60a5fa;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; scroll-padding-top:72px; }
+body { font-family:var(--font); background:var(--bg); color:var(--text); line-height:1.7; font-size:15px; }
+
+.nav {
+  position:fixed; top:0; left:0; right:0; z-index:100;
+  background:rgba(15,17,23,.88); backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border);
+  padding:0 32px; height:64px;
+  display:flex; align-items:center; gap:20px;
+}
+.nav .logo { font-weight:800; font-size:20px; color:var(--accent); text-decoration:none; }
+.nav .logo span { color:var(--text2); font-weight:400; }
+.nav .badge { font-size:10px; background:var(--accent); color:#fff; padding:2px 8px; border-radius:4px; font-weight:700; }
+.nav .links { margin-left:auto; display:flex; gap:6px; align-items:center; }
+.nav .links a {
+  color:var(--text2); text-decoration:none; font-size:13px;
+  padding:6px 14px; border-radius:6px; transition:.2s;
+}
+.nav .links a:hover, .nav .links a.active { color:var(--text); background:var(--bg3); }
+.theme-btn { background:none; border:1px solid var(--border); color:var(--text2); width:34px; height:34px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:16px; transition:.2s; }
+.theme-btn:hover { background:var(--bg3); color:var(--text); }
+
+.wrapper { display:flex; margin-top:64px; min-height:calc(100vh - 64px); }
+.sidebar {
+  position:fixed; top:64px; left:0; bottom:0; width:260px; overflow-y:auto;
+  padding:24px 0; border-right:1px solid var(--border); background:var(--bg);
+}
+.sidebar::-webkit-scrollbar { width:4px; }
+.sidebar::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+.sidebar .st { font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--text2); padding:0 20px 8px; font-weight:600; margin-top:16px; }
+.sidebar .st:first-child { margin-top:0; }
+.sidebar a {
+  display:block; padding:5px 20px; font-size:12px; color:var(--text2); text-decoration:none; transition:.15s;
+  border-left:2px solid transparent;
+}
+.sidebar a:hover { color:var(--text); background:var(--bg2); }
+.sidebar a .m {
+  display:inline-block; font-size:9px; font-weight:700; padding:1px 5px; border-radius:3px; margin-right:6px;
+  font-family:var(--mono); vertical-align:middle;
+}
+.mg { background:rgba(52,211,153,.15); color:var(--green); }
+.mp { background:rgba(96,165,250,.15); color:var(--blue); }
+.mu { background:rgba(251,191,36,.15); color:var(--yellow); }
+.md { background:rgba(248,113,113,.15); color:var(--red); }
+
+.content { margin-left:260px; flex:1; padding:40px 48px; max-width:960px; }
+.content h1 { font-size:30px; margin-bottom:8px; background:linear-gradient(135deg,var(--accent),var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.content .sub { color:var(--text2); margin-bottom:32px; font-size:14px; }
+.content h2 { font-size:22px; margin:40px 0 16px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+.content h3 { font-size:16px; margin:28px 0 10px; display:flex; align-items:center; gap:8px; }
+.content h3 .m { font-size:10px; font-weight:700; padding:2px 8px; border-radius:4px; font-family:var(--mono); }
+.content p { margin-bottom:14px; color:var(--text2); }
+.content a { color:var(--accent2); text-decoration:none; }
+.content a:hover { text-decoration:underline; }
+
+.endpoint {
+  background:var(--bg2); border:1px solid var(--border); border-radius:10px;
+  padding:18px 22px; margin-bottom:20px;
+}
+.endpoint .ep { font-family:var(--mono); font-size:14px; color:var(--text); margin-bottom:3px; }
+.endpoint .ep .m { font-size:10px; font-weight:700; padding:2px 8px; border-radius:4px; margin-right:8px; }
+.endpoint .ed { font-size:13px; color:var(--text2); }
+.endpoint .em { margin-top:8px; display:flex; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--text2); }
+.endpoint .em .perm { background:rgba(99,102,241,.12); color:var(--accent2); padding:2px 8px; border-radius:4px; font-family:var(--mono); font-size:11px; }
+
+pre { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:14px 18px; overflow-x:auto; font-family:var(--mono); font-size:12px; line-height:1.5; margin:10px 0; }
+code { font-family:var(--mono); font-size:13px; }
+p code { background:var(--bg3); padding:2px 6px; border-radius:4px; font-size:12px; }
+
+table { width:100%; border-collapse:collapse; margin:14px 0; font-size:13px; }
+th,td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--border); }
+th { color:var(--text2); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.5px; }
+td { color:var(--text); }
+tr:hover td { background:var(--bg2); }
+
+.info { background:rgba(96,165,250,.08); border:1px solid rgba(96,165,250,.2); border-radius:8px; padding:12px 16px; margin:12px 0; font-size:13px; color:var(--blue); }
+.warn { background:rgba(251,191,36,.08); border:1px solid rgba(251,191,36,.2); border-radius:8px; padding:12px 16px; margin:12px 0; font-size:13px; color:var(--yellow); }
+
+.menu-toggle { display:none; background:none; border:none; color:var(--text); font-size:24px; cursor:pointer; padding:4px; }
+@media (max-width:768px) {
+  .menu-toggle { display:block; }
+  .sidebar { transform:translateX(-100%); transition:transform .3s ease; z-index:99; width:280px; }
+  .sidebar.open { transform:translateX(0); }
+  .sidebar-bd { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:98; display:none; }
+  .sidebar-bd.open { display:block; }
+  .content { margin-left:0; padding:24px 16px; }
+  .nav .links a:not(.active) { display:none; }
+}
+@media print { .sidebar,.nav,.menu-toggle,.sidebar-bd { display:none!important; } .content { margin-left:0; padding:20px; } }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <button class="menu-toggle" id="menuToggle">&#9776;</button>
+  <a href="index.html" class="logo">go-database <span>API</span></a>
+  <span class="badge">v0.1.0</span>
+  <div class="links">
+    <a href="index.html">Home</a>
+    <a href="api.html" class="active">API</a>
+    <a href="dashboard.html">Dashboard</a>
+    <button class="theme-btn" id="themeBtn">&#9681;</button>
+  </div>
+</header>
+
+<div class="sidebar-bd" id="backdrop"></div>
+
+<div class="wrapper">
+<nav class="sidebar" id="sidebar">
+  <div class="st">Grundlagen</div>
+  <a href="#overview">&Uuml;bersicht</a>
+  <a href="#errors">Status &amp; Error-Codes</a>
+  <a href="#perms">Permission-Modell</a>
+
+  <div class="st">Auth</div>
+  <a href="#login"><span class="m mp">POST</span> /auth/login</a>
+  <a href="#refresh"><span class="m mp">POST</span> /auth/refresh</a>
+  <a href="#verify"><span class="m mg">GET</span> /auth/verify</a>
+  <a href="#change-pw"><span class="m mp">POST</span> /auth/change-password</a>
+
+  <div class="st">Connections</div>
+  <a href="#list-conn"><span class="m mg">GET</span> /connections</a>
+  <a href="#create-conn"><span class="m mp">POST</span> /connections</a>
+  <a href="#get-conn"><span class="m mg">GET</span> /connections/:id</a>
+  <a href="#del-conn"><span class="m md">DEL</span> /connections/:id</a>
+  <a href="#ping-conn"><span class="m mg">GET</span> /connections/:id/ping</a>
+
+  <div class="st">Explorer</div>
+  <a href="#tables"><span class="m mg">GET</span> /connections/:id/tables</a>
+  <a href="#schema"><span class="m mg">GET</span> /connections/:id/schema</a>
+  <a href="#browse"><span class="m mg">GET</span> /connections/:id/browse/:table</a>
+  <a href="#insert"><span class="m mp">POST</span> /connections/:id/row/:table</a>
+  <a href="#update"><span class="m mu">PUT</span> /connections/:id/row/:table/:pk/:val</a>
+  <a href="#delete"><span class="m md">DEL</span> /connections/:id/row/:table/:pk/:val</a>
+
+  <div class="st">Query</div>
+  <a href="#query"><span class="m mp">POST</span> /connections/:id/query</a>
+  <a href="#execute"><span class="m mp">POST</span> /connections/:id/execute</a>
+  <a href="#safe"><span class="m mp">POST</span> /execute/safe</a>
+
+  <div class="st">Datenbanken</div>
+  <a href="#standalone"><span class="m mp">POST</span> /databases/standalone</a>
+  <a href="#list-db"><span class="m mg">GET</span> /connections/:id/databases</a>
+  <a href="#create-db"><span class="m mp">POST</span> /connections/:id/databases</a>
+  <a href="#drop-db"><span class="m md">DEL</span> /connections/:id/databases/:name</a>
+  <a href="#create-tbl"><span class="m mp">POST</span> /connections/:id/tables</a>
+  <a href="#drop-tbl"><span class="m md">DEL</span> /connections/:id/tables/:name</a>
+
+  <div class="st">Admin</div>
+  <a href="#stats"><span class="m mg">GET</span> /admin/stats</a>
+  <a href="#activity"><span class="m mg">GET</span> /admin/activity</a>
+  <a href="#get-design"><span class="m mg">GET</span> /admin/design</a>
+  <a href="#save-design"><span class="m mp">POST</span> /admin/design</a>
+  <a href="#list-users"><span class="m mg">GET</span> /admin/users</a>
+  <a href="#create-user"><span class="m mp">POST</span> /admin/users</a>
+  <a href="#update-user"><span class="m mu">PUT</span> /admin/users/:id</a>
+  <a href="#delete-user"><span class="m md">DEL</span> /admin/users/:id</a>
+  <a href="#get-perms"><span class="m mg">GET</span> /admin/users/:id/permissions</a>
+  <a href="#set-perms"><span class="m mu">PUT</span> /admin/users/:id/permissions</a>
+  <a href="#get-db"><span class="m mg">GET</span> /admin/users/:id/db-access</a>
+  <a href="#set-db"><span class="m mu">PUT</span> /admin/users/:id/db-access</a>
+  <a href="#list-roles"><span class="m mg">GET</span> /admin/roles</a>
+  <a href="#create-role"><span class="m mp">POST</span> /admin/roles</a>
+  <a href="#update-role"><span class="m mu">PUT</span> /admin/roles/:id</a>
+  <a href="#delete-role"><span class="m md">DEL</span> /admin/roles/:id</a>
+  <a href="#role-perms"><span class="m mu">PUT</span> /admin/roles/:id/permissions</a>
+  <a href="#perm-groups"><span class="m mg">GET</span> /admin/permission-groups</a>
+
+  <div class="st">API Keys</div>
+  <a href="#list-keys"><span class="m mg">GET</span> /apikeys</a>
+  <a href="#create-key"><span class="m mp">POST</span> /apikeys</a>
+  <a href="#delete-key"><span class="m md">DEL</span> /apikeys/:prefix</a>
+
+  <div class="st">Transfer</div>
+  <a href="#start-transfer"><span class="m mp">POST</span> /transfer</a>
+  <a href="#get-transfer"><span class="m mg">GET</span> /transfer/:id</a>
+  <a href="#cancel-transfer"><span class="m md">DEL</span> /transfer/:id</a>
+  <a href="#transfer-log"><span class="m mg">GET</span> /transfer/:id/log</a>
+
+  <div class="st">Weitere</div>
+  <a href="#suggest"><span class="m mp">POST</span> /suggest</a>
+  <a href="#traffic-stats"><span class="m mg">GET</span> /traffic/stats</a>
+  <a href="#traffic-reqs"><span class="m mg">GET</span> /traffic/requests</a>
+  <a href="#health"><span class="m mg">GET</span> /health</a>
+</nav>
+
+<main class="content">
+
+<section id="overview">
+<h1>API Referenz</h1>
+<p class="sub">
+  Basis-URL: <code>http://localhost:8080/api/v1</code> &mdash; Einheitliches Response-Format: <code>{ success, data, error, meta }</code>
+</p>
+
+<p>go-database bietet <strong>53 REST-Endpunkte</strong> f&uuml;r die Verwaltung von sechs Datenbank-Engines. Die API unterst&uuml;tzt zwei Authentifizierungsmethoden:</p>
+
+<table>
+<tr><th>Methode</th><th>Header</th><th>Verwendung</th></tr>
+<tr><td>JWT (Session)</td><td><code>Authorization: Bearer &lt;token&gt;</code></td><td>Erhalten via <code>/auth/login</code></td></tr>
+<tr><td>API Key</td><td><code>X-API-Key: &lt;key&gt;</code></td><td>Erstellt via <code>/apikeys</code></td></tr>
+</table>
+
+<div class="info">Der Login-Endpunkt unterliegt einem Rate-Limit: nach 5 Fehlversuchen wird die IP blockiert.</div>
+</section>
+
+<!-- AUTH -->
+<h2>Auth</h2>
+
+<div class="endpoint" id="login">
+  <div class="ep"><span class="m mp">POST</span> /auth/login</div>
+  <div class="ed">Authentifiziert einen Benutzer und gibt ein JWT zur&uuml;ck. Rate-Limited.</div>
+  <div class="em">Auth: <code>none</code></div>
+  <pre>// Request
+{ "username": "admin", "password": "admin" }
+
+// Response 200
+{
+  "success": true,
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "user_id": "admin-001",
+    "username": "admin",
+    "role": "admin"
+  }
+}</pre>
+</div>
+
+<div class="endpoint" id="refresh">
+  <div class="ep"><span class="m mp">POST</span> /auth/refresh</div>
+  <div class="ed">Erneuert ein bestehendes JWT.</div>
+  <div class="em">Auth: <code>JWT</code></div>
+  <pre>{ "token": "eyJhbGciOiJIUzI1NiIs..." }</pre>
+</div>
+
+<div class="endpoint" id="verify">
+  <div class="ep"><span class="m mg">GET</span> /auth/verify</div>
+  <div class="ed">Verifiziert ein Token und gibt Benutzerinformationen zur&uuml;ck.</div>
+  <div class="em">Auth: <code>JWT</code></div>
+</div>
+
+<div class="endpoint" id="change-pw">
+  <div class="ep"><span class="m mp">POST</span> /auth/change-password</div>
+  <div class="ed">&Auml;ndert das Passwort des authentifizierten Benutzers.</div>
+  <div class="em">Auth: <code>JWT</code></div>
+  <pre>{ "old_password": "admin", "new_password": "neuesPasswort" }
+// Response: 204 No Content</pre>
+</div>
+
+<!-- CONNECTIONS -->
+<h2>Connections</h2>
+
+<div class="endpoint" id="list-conn">
+  <div class="ep"><span class="m mg">GET</span> /connections</div>
+  <div class="ed">Listet alle registrierten Datenbank-Verbindungen.</div>
+  <div class="em"><span class="perm">connections:list</span></div>
+  <pre>[{
+  "id": "a1b2c3d4", "name": "Meine PG-DB",
+  "type": "postgres", "source": "external",
+  "state": "connected", "latency_ms": 2,
+  "tags": ["production"]
+}]</pre>
+</div>
+
+<div class="endpoint" id="create-conn">
+  <div class="ep"><span class="m mp">POST</span> /connections</div>
+  <div class="ed">Registriert eine neue Datenbank-Verbindung.</div>
+  <div class="em"><span class="perm">connections:create</span></div>
+  <pre>// PostgreSQL / MySQL / MariaDB
+{
+  "name": "Meine DB", "type": "postgres",
+  "host": "localhost", "port": 5432,
+  "database": "sampledb", "user": "dev",
+  "password": "dev123", "ssl": false,
+  "tags": ["dev"]
+}
+// SQLite: { "type": "sqlite", "filepath": "./data/sample.db" }
+// Response: 201 Created</pre>
+</div>
+
+<div class="endpoint" id="get-conn">
+  <div class="ep"><span class="m mg">GET</span> /connections/:id</div>
+  <div class="ed">Details einer einzelnen Verbindung.</div>
+  <div class="em"><span class="perm">connections:list</span></div>
+</div>
+
+<div class="endpoint" id="del-conn">
+  <div class="ep"><span class="m md">DELETE</span> /connections/:id</div>
+  <div class="ed">Entfernt eine Verbindung.</div>
+  <div class="em"><span class="perm">connections:delete</span></div>
+  <div class="ed"><strong>Response:</strong> 204 No Content</div>
+</div>
+
+<div class="endpoint" id="ping-conn">
+  <div class="ep"><span class="m mg">GET</span> /connections/:id/ping</div>
+  <div class="ed">Pr&uuml;ft die Verbindung und misst die Latenz.</div>
+  <div class="em"><span class="perm">connections:list</span></div>
+  <pre>{ "latency_ms": 2, "status": "ok" }</pre>
+</div>
+
+<!-- EXPLORER -->
+<h2>Explorer</h2>
+
+<div class="endpoint" id="tables">
+  <div class="ep"><span class="m mg">GET</span> /connections/:id/tables</div>
+  <div class="ed">Listet alle Tabellen/Collections.</div>
+  <div class="em"><span class="perm">connections:list</span></div>
+  <pre>["users", "products", "orders"]</pre>
+</div>
+
+<div class="endpoint" id="schema">
+  <div class="ep"><span class="m mg">GET</span> /connections/:id/schema</div>
+  <div class="ed">Vollst&auml;ndiges Schema (Tabellen, Spalten, Typen, Constraints).</div>
+  <div class="em"><span class="perm">connections:list</span></div>
+</div>
+
+<div class="endpoint" id="browse">
+  <div class="ep"><span class="m mg">GET</span> /connections/:id/browse/:table</div>
+  <div class="ed">Daten paginiert abrufen mit Sortierung und Filter.</div>
+  <div class="em"><span class="perm">connections:query</span></div>
+  <table>
+    <tr><th>Parameter</th><th>Typ</th><th>Standard</th><th>Beschreibung</th></tr>
+    <tr><td><code>page</code></td><td>int</td><td>1</td><td>Seitenzahl</td></tr>
+    <tr><td><code>per_page</code></td><td>int</td><td>50</td><td>Eintr&auml;ge pro Seite (max 200)</td></tr>
+    <tr><td><code>sort</code></td><td>string</td><td>-</td><td>Spaltenname</td></tr>
+    <tr><td><code>dir</code></td><td>string</td><td>asc</td><td>asc/desc</td></tr>
+    <tr><td><code>filter</code></td><td>string</td><td>-</td><td>SQL-WHERE (ges&auml;ubert)</td></tr>
+  </table>
+  <pre>{
+  "data": [[1, "Alice", "alice@..."]],
+  "columns": ["id", "name", "email"],
+  "page": 1, "per_page": 50,
+  "total": 100, "total_pages": 2,
+  "duration_ms": 5
+}</pre>
+</div>
+
+<div class="endpoint" id="insert">
+  <div class="ep"><span class="m mp">POST</span> /connections/:id/row/:table</div>
+  <div class="ed">Neue Zeile einf&uuml;gen.</div>
+  <div class="em"><span class="perm">connections:query</span></div>
+  <pre>{ "name": "Alice", "email": "alice@example.com" }
+// Response: 201 Created</pre>
+</div>
+
+<div class="endpoint" id="update">
+  <div class="ep"><span class="m mu">PUT</span> /connections/:id/row/:table/:pk/:val</div>
+  <div class="ed">Zeile aktualisieren (<code>:pk</code> = PK-Spalte, <code>:val</code> = Wert).</div>
+  <div class="em"><span class="perm">connections:query</span></div>
+</div>
+
+<div class="endpoint" id="delete">
+  <div class="ep"><span class="m md">DELETE</span> /connections/:id/row/:table/:pk/:val</div>
+  <div class="ed">Zeile l&ouml;schen.</div>
+  <div class="em"><span class="perm">connections:query</span></div>
+  <div class="ed"><strong>Response:</strong> 204 No Content</div>
+</div>
+
+<!-- QUERY -->
+<h2>Query</h2>
+
+<div class="endpoint" id="query">
+  <div class="ep"><span class="m mp">POST</span> /connections/:id/query</div>
+  <div class="ed">SELECT-Query. Automatische SQL-Typerkennung; nur SELECT/EXPLAIN/DESC etc. erlaubt.</div>
+  <div class="em"><span class="perm">connections:query</span></div>
+  <pre>{ "query": "SELECT * FROM users WHERE id = 1" }
+
+{
+  "columns": ["id", "name", "email"],
+  "rows": [[1, "Alice", "alice@..."]],
+  "rows_affected": 1,
+  "duration_ms": 3
+}</pre>
+</div>
+
+<div class="endpoint" id="execute">
+  <div class="ep"><span class="m mp">POST</span> /connections/:id/execute</div>
+  <div class="ed">INSERT/UPDATE/DELETE/DDL-Query.</div>
+  <div class="em"><span class="perm">connections:execute</span></div>
+  <pre>{ "query": "UPDATE users SET name = 'Bob' WHERE id = 1" }</pre>
+</div>
+
+<div class="endpoint" id="safe">
+  <div class="ep"><span class="m mp">POST</span> /execute/safe</div>
+  <div class="ed">Query mit Risikobewertung und zus&auml;tzlicher Sicherheitspr&uuml;fung.</div>
+  <div class="em"><span class="perm">connections:query</span></div>
+  <pre>{ "connection_id": "...", "sql": "DROP TABLE users", "confirm_high": true }</pre>
+</div>
+
+<!-- DATABASES -->
+<h2>Datenbanken &amp; Tabellen</h2>
+
+<div class="endpoint" id="standalone">
+  <div class="ep"><span class="m mp">POST</span> /databases/standalone</div>
+  <div class="ed">Erzeugt eine Standalone-Datenbank (SQLite-Datei oder tempor&auml;re Instanz).</div>
+  <div class="em"><span class="perm">connections:create</span></div>
+</div>
+
+<div class="endpoint" id="list-db">
+  <div class="ep"><span class="m mg">GET</span> /connections/:id/databases</div>
+  <div class="ed">Listet alle Datenbanken einer Verbindung.</div>
+  <div class="em"><span class="perm">connections:list</span></div>
+</div>
+
+<div class="endpoint" id="create-db">
+  <div class="ep"><span class="m mp">POST</span> /connections/:id/databases</div>
+  <div class="ed">Erzeugt eine neue Datenbank.</div>
+  <div class="em"><span class="perm">connections:execute</span></div>
+  <pre>{ "name": "new_database" }</pre>
+</div>
+
+<div class="endpoint" id="drop-db">
+  <div class="ep"><span class="m md">DELETE</span> /connections/:id/databases/:name</div>
+  <div class="ed">L&ouml;scht eine Datenbank.</div>
+  <div class="em"><span class="perm">connections:execute</span></div>
+  <div class="ed"><strong>Response:</strong> 204 No Content</div>
+</div>
+
+<div class="endpoint" id="create-tbl">
+  <div class="ep"><span class="m mp">POST</span> /connections/:id/tables</div>
+  <div class="ed">Erzeugt eine neue Tabelle.</div>
+  <div class="em"><span class="perm">connections:execute</span></div>
+  <pre>{ "name": "users", "columns": "id INT PK, name TEXT, email TEXT" }</pre>
+</div>
+
+<div class="endpoint" id="drop-tbl">
+  <div class="ep"><span class="m md">DELETE</span> /connections/:id/tables/:name</div>
+  <div class="ed">L&ouml;scht eine Tabelle.</div>
+  <div class="em"><span class="perm">connections:execute</span></div>
+  <div class="ed"><strong>Response:</strong> 204 No Content</div>
+</div>
+
+<!-- ADMIN -->
+<h2>Admin</h2>
+
+<div class="endpoint" id="stats">
+  <div class="ep"><span class="m mg">GET</span> /admin/stats</div>
+  <div class="ed">Dashboard-Statistiken &mdash; Verbindungen, Queries, Benutzer, Datenbanken.</div>
+  <div class="em"><span class="perm">traffic:view</span></div>
+  <pre>{ "connections": 5, "queries": 1234, "users": 3, "databases": 8 }</pre>
+</div>
+
+<div class="endpoint" id="activity">
+  <div class="ep"><span class="m mg">GET</span> /admin/activity</div>
+  <div class="ed">Audit-Log der letzten Aktionen.</div>
+  <div class="em"><span class="perm">traffic:view</span></div>
+</div>
+
+<div class="endpoint" id="get-design">
+  <div class="ep"><span class="m mg">GET</span> /admin/design</div>
+  <div class="ed">Aktive Design-Konfiguration (adaptives Theme).</div>
+  <div class="em"><span class="perm">settings:read</span></div>
+</div>
+
+<div class="endpoint" id="save-design">
+  <div class="ep"><span class="m mp">POST</span> /admin/design</div>
+  <div class="ed">Design speichern (Primary-Color, Dark-Mode, kompakt, Sidebar-Breite).</div>
+  <div class="em"><span class="perm">settings:write</span></div>
+  <pre>{ "name": "Winter-Theme", "config": "{\"dark_mode\":true,\"compact\":false}", "active": true }</pre>
+</div>
+
+<div class="endpoint" id="list-users">
+  <div class="ep"><span class="m mg">GET</span> /admin/users</div>
+  <div class="ed">Listet alle Benutzer (ohne Passwort-Hashes).</div>
+  <div class="em"><span class="perm">users:list</span></div>
+</div>
+
+<div class="endpoint" id="create-user">
+  <div class="ep"><span class="m mp">POST</span> /admin/users</div>
+  <div class="ed">Neuen Benutzer anlegen.</div>
+  <div class="em"><span class="perm">users:create</span></div>
+  <pre>{ "username": "dev1", "password": "secret", "role": "developer" }</pre>
+</div>
+
+<div class="endpoint" id="update-user">
+  <div class="ep"><span class="m mu">PUT</span> /admin/users/:id</div>
+  <div class="ed">Benutzer aktualisieren.</div>
+  <div class="em"><span class="perm">users:edit</span></div>
+</div>
+
+<div class="endpoint" id="delete-user">
+  <div class="ep"><span class="m md">DELETE</span> /admin/users/:id</div>
+  <div class="ed">Benutzer l&ouml;schen.</div>
+  <div class="em"><span class="perm">users:delete</span></div>
+  <div class="ed"><strong>Response:</strong> 204 No Content</div>
+</div>
+
+<div class="endpoint" id="get-perms">
+  <div class="ep"><span class="m mg">GET</span> /admin/users/:id/permissions</div>
+  <div class="ed">Effektive Berechtigungen (Rolle + individuelle Overrides).</div>
+  <div class="em"><span class="perm">users:list</span></div>
+</div>
+
+<div class="endpoint" id="set-perms">
+  <div class="ep"><span class="m mu">PUT</span> /admin/users/:id/permissions</div>
+  <div class="ed">User-spezifische Permission-Overrides setzen.</div>
+  <div class="em"><span class="perm">users:edit</span></div>
+  <pre>{ "extra_perm": ["users:create"], "extra_db_access": ["conn-123"] }</pre>
+</div>
+
+<div class="endpoint" id="get-db">
+  <div class="ep"><span class="m mg">GET</span> /admin/users/:id/db-access</div>
+  <div class="ed">DB-Zugriffsrechte abrufen.</div>
+  <div class="em"><span class="perm">roles:manage</span></div>
+</div>
+
+<div class="endpoint" id="set-db">
+  <div class="ep"><span class="m mu">PUT</span> /admin/users/:id/db-access</div>
+  <div class="ed">DB-Zugriffsrechte setzen.</div>
+  <div class="em"><span class="perm">roles:manage</span></div>
+</div>
+
+<div class="endpoint" id="list-roles">
+  <div class="ep"><span class="m mg">GET</span> /admin/roles</div>
+  <div class="ed">Listet alle Rollen.</div>
+  <div class="em"><span class="perm">roles:manage</span></div>
+</div>
+
+<div class="endpoint" id="create-role">
+  <div class="ep"><span class="m mp">POST</span> /admin/roles</div>
+  <div class="ed">Neue Rolle anlegen.</div>
+  <div class="em"><span class="perm">roles:manage</span></div>
+  <pre>{ "name": "DBA", "permissions": ["connections:list", "connections:query", "backup:create"] }</pre>
+</div>
+
+<div class="endpoint" id="update-role">
+  <div class="ep"><span class="m mu">PUT</span> /admin/roles/:id</div>
+  <div class="ed">Rolle aktualisieren.</div>
+  <div class="em"><span class="perm">roles:manage</span></div>
+</div>
+
+<div class="endpoint" id="delete-role">
+  <div class="ep"><span class="m md">DELETE</span> /admin/roles/:id</div>
+  <div class="ed">Rolle l&ouml;schen.</div>
+  <div class="em"><span class="perm">roles:manage</span></div>
+</div>
+
+<div class="endpoint" id="role-perms">
+  <div class="ep"><span class="m mu">PUT</span> /admin/roles/:id/permissions</div>
+  <div class="ed">Rollen-Berechtigungen setzen.</div>
+  <div class="em"><span class="perm">roles:manage</span></div>
+  <pre>{ "permissions": ["connections:*", "users:list"], "db_access": ["*"] }</pre>
+</div>
+
+<div class="endpoint" id="perm-groups">
+  <div class="ep"><span class="m mg">GET</span> /admin/permission-groups</div>
+  <div class="ed">Hierarchische Permission-Gruppen (f&uuml;r UI-Checkboxen).</div>
+  <div class="em"><span class="perm">roles:manage</span></div>
+</div>
+
+<!-- API KEYS -->
+<h2>API Keys</h2>
+
+<div class="endpoint" id="list-keys">
+  <div class="ep"><span class="m mg">GET</span> /apikeys</div>
+  <div class="ed">Listet alle API-Keys (nur Prefixe, keine Rohwerte).</div>
+  <div class="em"><span class="perm">apikeys:manage</span></div>
+</div>
+
+<div class="endpoint" id="create-key">
+  <div class="ep"><span class="m mp">POST</span> /apikeys</div>
+  <div class="ed">Generiert einen neuen API-Key.</div>
+  <div class="em"><span class="perm">apikeys:manage</span></div>
+  <div class="warn">Der <code>raw_key</code> wird nur bei der Erstellung ausgegeben!</div>
+  <pre>{ "name": "CI/CD Pipeline", "permissions": ["connections:list", "connections:query"] }
+// 201 Created
+{ "raw_key": "a1b2c3d4...", "prefix": "a1b2c3d4",
+  "name": "CI/CD Pipeline", "formatted": "a1b2c3d4********cdef" }</pre>
+</div>
+
+<div class="endpoint" id="delete-key">
+  <div class="ep"><span class="m md">DELETE</span> /apikeys/:prefix</div>
+  <div class="ed">API-Key widerrufen.</div>
+  <div class="em"><span class="perm">apikeys:manage</span></div>
+  <div class="ed"><strong>Response:</strong> 204 No Content</div>
+</div>
+
+<!-- TRANSFER -->
+<h2>Transfer</h2>
+
+<div class="endpoint" id="start-transfer">
+  <div class="ep"><span class="m mp">POST</span> /transfer</div>
+  <div class="ed">Startet Datentransfer zwischen zwei Verbindungen.</div>
+  <div class="em"><span class="perm">connections:execute</span></div>
+  <pre>{
+  "source_conn": "conn-sqlite", "target_conn": "conn-pg",
+  "tables": ["users", "products"],
+  "dry_run": true, "batch_size": 1000
+}</pre>
+</div>
+
+<div class="endpoint" id="get-transfer">
+  <div class="ep"><span class="m mg">GET</span> /transfer/:id</div>
+  <div class="ed">Status eines laufenden/abgeschlossenen Transfers.</div>
+  <div class="em"><span class="perm">connections:execute</span></div>
+</div>
+
+<div class="endpoint" id="cancel-transfer">
+  <div class="ep"><span class="m md">DELETE</span> /transfer/:id</div>
+  <div class="ed">Laufenden Transfer abbrechen.</div>
+  <div class="em"><span class="perm">connections:execute</span></div>
+</div>
+
+<div class="endpoint" id="transfer-log">
+  <div class="ep"><span class="m mg">GET</span> /transfer/:id/log</div>
+  <div class="ed">Fehler-Log eines Transfers.</div>
+  <div class="em"><span class="perm">connections:execute</span></div>
+</div>
+
+<!-- WEITERE -->
+<h2>Weitere Endpunkte</h2>
+
+<div class="endpoint" id="suggest">
+  <div class="ep"><span class="m mp">POST</span> /suggest</div>
+  <div class="ed">SQL-Autocomplete: Vorschl&auml;ge basierend auf Eingabe und DB-Schema (Trie + Levenshtein + NL-Intents).</div>
+  <div class="em"><span class="perm">connections:list</span></div>
+  <pre>{ "connection_id": "...", "input": "SELECT * FROM u", "current_table": "" }
+
+[{ "text": "users", "type": "table", "confidence": 0.95 }]</pre>
+</div>
+
+<div class="endpoint" id="traffic-stats">
+  <div class="ep"><span class="m mg">GET</span> /traffic/stats</div>
+  <div class="ed">Traffic-Statistiken (Requests/s, Latenz, Fehlerrate).</div>
+  <div class="em"><span class="perm">traffic:view</span></div>
+</div>
+
+<div class="endpoint" id="traffic-reqs">
+  <div class="ep"><span class="m mg">GET</span> /traffic/requests</div>
+  <div class="ed">Letzte API-Requests.</div>
+  <div class="em"><span class="perm">traffic:view</span></div>
+</div>
+
+<div class="endpoint" id="health">
+  <div class="ep"><span class="m mg">GET</span> /health</div>
+  <div class="ed">Server-Health-Check (keine Auth).</div>
+  <div class="em">Auth: <code>none</code></div>
+  <pre>{ "status": "ok", "version": "0.1.0" }</pre>
+</div>
+
+<!-- WEBSOCKET -->
+<h2>WebSocket</h2>
+
+<div class="endpoint" id="ws-query">
+  <div class="ep"><span class="m mp">WS</span> /ws/query/:id</div>
+  <div class="ed">Streaming-Query-Endpunkt &uuml;ber WebSocket. Bidirektionale Kommunikation f&uuml;r Echtzeit-Datenbankabfragen.</div>
+  <div class="em"><span class="perm">connections:query</span></div>
+  <pre>// Client sendet:
+{ "type": "query", "query": "SELECT * FROM users", "req_id": "abc123" }
+
+// Server antwortet asynchron:
+{ "type": "result", "req_id": "abc123", "success": true,
+  "data": { "columns": ["id","name"], "rows": [[1,"Alice"]], "rows_affected": 1, "duration_ms": 3 } }
+
+// Fehler:
+{ "type": "result", "req_id": "abc123", "success": false, "error": "query failed: ..." }
+
+// Execute (INSERT/UPDATE/DELETE):
+{ "type": "execute", "query": "UPDATE users SET name='Bob' WHERE id=1", "req_id": "xyz" }
+
+// Ping:
+{ "type": "ping", "req_id": "..." } → { "type": "pong", "req_id": "..." }</pre>
+</div>
+
+<!-- SSE -->
+<h2>SSE (Server-Sent Events)</h2>
+
+<div class="endpoint" id="sse-activity">
+  <div class="ep"><span class="m mg">SSE</span> /sse/activity</div>
+  <div class="ed">Server-Sent Events: Live-Audit-Log-Stream. Verbindung bleibt offen, Events werden gepusht.</div>
+  <div class="em"><span class="perm">traffic:view</span></div>
+  <pre>// &Uuml;ber curl oder EventSource nutzbar:
+curl -H "Authorization: Bearer &lt;token&gt;" http://localhost:8080/api/v1/sse/activity
+
+// Format:
+event: connected
+data: {"status":"ok"}
+
+event: heartbeat
+data: {"timestamp":"2025-...","connections":3}</pre>
+</div>
+
+<div class="endpoint" id="sse-stats">
+  <div class="ep"><span class="m mg">SSE</span> /sse/stats</div>
+  <div class="ed">Live-Statistiken alle 2 Sekunden: aktive und gesamte Verbindungen.</div>
+  <div class="em"><span class="perm">traffic:view</span></div>
+  <pre>event: stats
+data: {"timestamp":"...","total_connections":5,"active_connections":3}</pre>
+</div>
+
+<!-- ERRORS -->
+<section id="errors">
+
+<h2>Python Beispiel</h2>
+<p>Vollständiges Skript in <code>docs/examples/python/api_test.py</code>:</p>
+<pre>import requests
+
+BASE = "http://localhost:8080/api/v1"
+
+# 1. Login — JWT holen
+r = requests.post(f"{BASE}/auth/login", json={
+    "username": "admin", "password": "admin"
+})
+token = r.json()["data"]["token"]
+headers = {"Authorization": f"Bearer {token}"}
+
+# 2. SQLite-In-Memory-DB anlegen
+r = requests.post(f"{BASE}/connections", headers=headers, json={
+    "name": "Test", "type": "sqlite", "filepath": ":memory:"
+})
+conn_id = r.json()["data"]["id"]
+
+# 3. Query ausführen
+r = requests.post(f"{BASE}/connections/{conn_id}/execute", headers=headers, json={
+    "query": "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)"
+})
+r = requests.post(f"{BASE}/connections/{conn_id}/query", headers=headers, json={
+    "query": "SELECT * FROM users"
+})
+print(r.json()["data"]["rows"])  # → []</pre>
+
+<h2>Status-Codes</h2>
+<table>
+<tr><th>Code</th><th>Bedeutung</th></tr>
+<tr><td>200</td><td>Success</td></tr>
+<tr><td>201</td><td>Created</td></tr>
+<tr><td>204</td><td>No Content</td></tr>
+<tr><td>400</td><td>Bad Request &mdash; Validierungsfehler</td></tr>
+<tr><td>401</td><td>Unauthorized &mdash; fehlende/ung&uuml;ltige Authentifizierung</td></tr>
+<tr><td>403</td><td>Forbidden &mdash; Permission verweigert</td></tr>
+<tr><td>404</td><td>Not Found &mdash; Resource nicht gefunden</td></tr>
+<tr><td>409</td><td>Conflict &mdash; Resource existiert bereits</td></tr>
+<tr><td>500</td><td>Internal Server Error</td></tr>
+<tr><td>502</td><td>Bad Gateway &mdash; DB-Verbindungsfehler</td></tr>
+</table>
+
+<h2>Error-Codes</h2>
+<table>
+<tr><th>Code</th><th>Bedeutung</th></tr>
+<tr><td><code>BAD_REQUEST</code></td><td>Validierungsfehler</td></tr>
+<tr><td><code>UNAUTHORIZED</code></td><td>Fehlende/ung&uuml;ltige Authentifizierung</td></tr>
+<tr><td><code>FORBIDDEN</code></td><td>Nicht gen&uuml;gend Berechtigungen</td></tr>
+<tr><td><code>NOT_FOUND</code></td><td>Resource nicht gefunden</td></tr>
+<tr><td><code>CONFLICT</code></td><td>Resource existiert bereits</td></tr>
+<tr><td><code>CONNECTION_FAILED</code></td><td>DB-Verbindung fehlgeschlagen</td></tr>
+<tr><td><code>QUERY_FAILED</code></td><td>SQL-Query-Fehler</td></tr>
+<tr><td><code>NETWORK_ERROR</code></td><td>Netzwerkfehler (Frontend)</td></tr>
+<tr><td><code>PARSE_ERROR</code></td><td>Antwort-Parsing-Fehler</td></tr>
+<tr><td><code>INTERNAL_ERROR</code></td><td>Server-interner Fehler</td></tr>
+</table>
+</section>
+
+<!-- PERMISSIONS -->
+<section id="perms">
+<h2>Permission-Modell</h2>
+<p>19 Berechtigungen, 5 Kategorien, 3 Default-Rollen. User-spezifische Overrides erweitern die Rollen-Permissions.</p>
+
+<table>
+<tr><th>Rolle</th><th>Berechtigungen</th></tr>
+<tr><td><code>admin</code></td><td><code>*</code> (alle)</td></tr>
+<tr><td><code>developer</code></td><td>connections:list/query/execute, users:list, jobs:list/create, traffic:view</td></tr>
+<tr><td><code>readonly</code></td><td>connections:list, connections:query</td></tr>
+</table>
+
+<table>
+<tr><th>Permission</th><th>Kategorie</th><th>Beschreibung</th></tr>
+<tr><td><code>connections:list</code></td><td>Connection</td><td>Verbindungen + Schema auflisten</td></tr>
+<tr><td><code>connections:create</code></td><td>Connection</td><td>Neue Verbindungen registrieren</td></tr>
+<tr><td><code>connections:delete</code></td><td>Connection</td><td>Verbindungen l&ouml;schen</td></tr>
+<tr><td><code>connections:query</code></td><td>Connection</td><td>SELECT, Browse, Row-CRUD</td></tr>
+<tr><td><code>connections:execute</code></td><td>Connection</td><td>INSERT/UPDATE/DELETE/DDL/Transfer</td></tr>
+<tr><td><code>users:list</code></td><td>Users</td><td>Benutzer auflisten</td></tr>
+<tr><td><code>users:create</code></td><td>Users</td><td>Benutzer anlegen</td></tr>
+<tr><td><code>users:edit</code></td><td>Users</td><td>Benutzer bearbeiten + Permissions</td></tr>
+<tr><td><code>users:delete</code></td><td>Users</td><td>Benutzer l&ouml;schen</td></tr>
+<tr><td><code>settings:read</code></td><td>Admin</td><td>Design/Einstellungen lesen</td></tr>
+<tr><td><code>settings:write</code></td><td>Admin</td><td>Design/Einstellungen speichern</td></tr>
+<tr><td><code>traffic:view</code></td><td>Admin</td><td>Stats, Activity, Traffic</td></tr>
+<tr><td><code>apikeys:manage</code></td><td>Admin</td><td>API-Keys verwalten</td></tr>
+<tr><td><code>roles:manage</code></td><td>Admin</td><td>Rollen + Permission-Gruppen</td></tr>
+<tr><td><code>jobs:*</code></td><td>Jobs</td><td>Jobs auflisten/erstellen/abbrechen</td></tr>
+<tr><td><code>backup:*</code></td><td>Backup</td><td>Backup erstellen/wiederherstellen</td></tr>
+</table>
+</section>
+
+</main>
+</div>
+
+<script>
+const menuToggle=document.getElementById('menuToggle'),sidebar=document.getElementById('sidebar'),backdrop=document.getElementById('backdrop');
+menuToggle.addEventListener('click',()=>{sidebar.classList.toggle('open');backdrop.classList.toggle('open')});
+backdrop.addEventListener('click',()=>{sidebar.classList.toggle('open');backdrop.classList.toggle('open')});
+document.querySelectorAll('.sidebar a[href^="#"]').forEach(a=>a.addEventListener('click',()=>{if(window.innerWidth<=768){sidebar.classList.remove('open');backdrop.classList.remove('open')}}));
+document.querySelectorAll('a[href^="#"]').forEach(a=>a.addEventListener('click',e=>{const h=a.getAttribute('href');if(h&&h!=='#'){e.preventDefault();document.querySelector(h).scrollIntoView({behavior:'smooth'})}}));
+let light=false;
+document.getElementById('themeBtn').addEventListener('click',()=>{
+  light=!light;
+  const r=document.documentElement;
+  r.style.setProperty('--bg',light?'#ffffff':'#0f1117');
+  r.style.setProperty('--bg2',light?'#f8f9fc':'#161822');
+  r.style.setProperty('--bg3',light?'#eef0f6':'#1c1f2e');
+  r.style.setProperty('--border',light?'#e2e4ec':'#252836');
+  r.style.setProperty('--text',light?'#1a1d2e':'#e4e6f0');
+  r.style.setProperty('--text2',light?'#6b6f82':'#8b8fa3');
+  document.getElementById('themeBtn').textContent=light?'\u263E':'\u25C1';
+});
+</script>
+</body>
+</html>

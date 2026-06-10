@@ -18,15 +18,16 @@ const prefix = "GODB_"
 
 // Server holds the HTTP server configuration
 type Server struct {
-	Host    string `json:"host" yaml:"host"`
-	Port    int    `json:"port" yaml:"port"`
-	BaseURL string `json:"base_url" yaml:"base_url"`
+	Host        string `json:"host" yaml:"host"`
+	Port        int    `json:"port" yaml:"port"`
+	BaseURL     string `json:"base_url" yaml:"base_url"`
+	CORSOrigin  string `json:"cors_origin" yaml:"cors_origin"`
 }
 
 // Auth holds authentication configuration
 type Auth struct {
-	JWTSecret     string `json:"jwt_secret" yaml:"jwt_secret"`
 	TokenDuration int    `json:"token_duration" yaml:"token_duration"` // minutes
+	JWTSecret     string `json:"jwt_secret" yaml:"jwt_secret"`
 }
 
 // InternalDB holds paths for internal SQLite databases
@@ -116,7 +117,7 @@ func Load(paths ...string) (*Config, error) {
 
 func (c *Config) setDefaults() {
 	if c.Server.Host == "" {
-		c.Server.Host = "0.0.0.0"
+		c.Server.Host = "127.0.0.1"
 	}
 	if c.Server.Port == 0 {
 		c.Server.Port = 8080
@@ -140,9 +141,6 @@ func (s *Server) Addr() string {
 // PrintJSON returns the config as formatted JSON (for debugging, secrets masked)
 func (c *Config) PrintJSON() string {
 	safe := *c
-	if safe.Auth.JWTSecret != "" {
-		safe.Auth.JWTSecret = "***"
-	}
 	b, _ := json.MarshalIndent(safe, "", "  ")
 	return string(b)
 }

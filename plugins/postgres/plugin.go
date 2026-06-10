@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -53,15 +54,24 @@ func (p *pgPlugin) Connect(ctx context.Context, cfg plugin.Config) error {
 }
 
 func (p *pgPlugin) Ping(ctx context.Context) error {
+	if p.pool == nil {
+		return fmt.Errorf("postgres: not connected")
+	}
 	return p.pool.Ping(ctx)
 }
 
 func (p *pgPlugin) Close() error {
+	if p.pool == nil {
+		return nil
+	}
 	p.pool.Close()
 	return nil
 }
 
 func (p *pgPlugin) Query(ctx context.Context, q string) (*plugin.Result, error) {
+	if p.pool == nil {
+		return nil, fmt.Errorf("postgres: not connected")
+	}
 	start := time.Now()
 	rows, err := p.pool.Query(ctx, q)
 	if err != nil {
@@ -93,6 +103,9 @@ func (p *pgPlugin) Query(ctx context.Context, q string) (*plugin.Result, error) 
 }
 
 func (p *pgPlugin) Execute(ctx context.Context, q string) (*plugin.Result, error) {
+	if p.pool == nil {
+		return nil, fmt.Errorf("postgres: not connected")
+	}
 	start := time.Now()
 	tag, err := p.pool.Exec(ctx, q)
 	if err != nil {
@@ -105,6 +118,9 @@ func (p *pgPlugin) Execute(ctx context.Context, q string) (*plugin.Result, error
 }
 
 func (p *pgPlugin) Tables(ctx context.Context) ([]string, error) {
+	if p.pool == nil {
+		return nil, fmt.Errorf("postgres: not connected")
+	}
 	rows, err := p.pool.Query(ctx, `
 		SELECT table_name
 		FROM information_schema.tables
@@ -127,6 +143,9 @@ func (p *pgPlugin) Tables(ctx context.Context) ([]string, error) {
 }
 
 func (p *pgPlugin) Databases(ctx context.Context) ([]string, error) {
+	if p.pool == nil {
+		return nil, fmt.Errorf("postgres: not connected")
+	}
 	rows, err := p.pool.Query(ctx,
 		"SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname")
 	if err != nil {
@@ -145,6 +164,9 @@ func (p *pgPlugin) Databases(ctx context.Context) ([]string, error) {
 }
 
 func (p *pgPlugin) CreateDatabase(ctx context.Context, name string) error {
+	if p.pool == nil {
+		return fmt.Errorf("postgres: not connected")
+	}
 	_, err := p.pool.Exec(ctx, fmt.Sprintf(`CREATE DATABASE "%s"`, name))
 	if err != nil {
 		return fmt.Errorf("postgres: create database: %w", err)
@@ -153,6 +175,9 @@ func (p *pgPlugin) CreateDatabase(ctx context.Context, name string) error {
 }
 
 func (p *pgPlugin) DropDatabase(ctx context.Context, name string) error {
+	if p.pool == nil {
+		return fmt.Errorf("postgres: not connected")
+	}
 	_, err := p.pool.Exec(ctx, fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, name))
 	if err != nil {
 		return fmt.Errorf("postgres: drop database: %w", err)
@@ -161,6 +186,9 @@ func (p *pgPlugin) DropDatabase(ctx context.Context, name string) error {
 }
 
 func (p *pgPlugin) Schema(ctx context.Context) (*plugin.Schema, error) {
+	if p.pool == nil {
+		return nil, fmt.Errorf("postgres: not connected")
+	}
 	tables, err := p.Tables(ctx)
 	if err != nil {
 		return nil, err
@@ -169,8 +197,10 @@ func (p *pgPlugin) Schema(ctx context.Context) (*plugin.Schema, error) {
 	var schema plugin.Schema
 	for _, tbl := range tables {
 		info := plugin.TableInfo{Name: tbl}
-		_ = p.pool.QueryRow(ctx,
-			"SELECT reltuples::bigint FROM pg_class WHERE relname = $1", tbl).Scan(&info.RowCount)
+		if err := p.pool.QueryRow(ctx,
+			"SELECT reltuples::bigint FROM pg_class WHERE relname = $1", tbl).Scan(&info.RowCount); err != nil {
+			slog.Warn("failed to get table row count", "table", tbl, "error", err)
+		}
 
 		rows, err := p.pool.Query(ctx, `
 			SELECT column_name, data_type, is_nullable,
@@ -185,11 +215,9 @@ func (p *pgPlugin) Schema(ctx context.Context) (*plugin.Schema, error) {
 
 		for rows.Next() {
 			var name, typ, nullable, def string
-			var colLen string
-			if err := rows.Scan(&name, &typ, &nullable, &colLen, &def); err != nil {
+			if err := rows.Scan(&name, &typ, &nullable, new(string), &def); err != nil {
 				continue
 			}
-			_ = colLen
 			info.Columns = append(info.Columns, plugin.ColumnInfo{
 				Name:     name,
 				Type:     typ,

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -100,7 +101,16 @@ type changePasswordRequest struct {
 
 func ChangePassword(store *internaldb.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID, _ := c.Get("user_id")
+		userIDVal, exists := c.Get("user_id")
+		if !exists {
+			response.Unauthorized(c, "user not found")
+			return
+		}
+		userID, ok := userIDVal.(string)
+		if !ok {
+			response.InternalError(c, "invalid user id")
+			return
+		}
 
 		var req changePasswordRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -108,7 +118,7 @@ func ChangePassword(store *internaldb.Store) gin.HandlerFunc {
 			return
 		}
 
-		user, err := store.GetUserByID(c.Request.Context(), userID.(string))
+		user, err := store.GetUserByID(c.Request.Context(), userID)
 		if err != nil {
 			response.Unauthorized(c, "user not found")
 			return
@@ -131,7 +141,28 @@ func ChangePassword(store *internaldb.Store) gin.HandlerFunc {
 			return
 		}
 
-		_ = store.LogAudit(c.Request.Context(), userID.(string), "password.change", "Password changed")
+		if err := store.LogAudit(c.Request.Context(), userID, "password.change", "Password changed"); err != nil {
+			slog.Warn("failed to log password change audit", "user", userID, "error", err)
+		}
 		c.Status(http.StatusNoContent)
+	}
+}
+
+func VerifyToken(jwt *auth.JWTService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, _ := c.Get("user_id")
+		username, _ := c.Get("username")
+		role, _ := c.Get("role")
+		extraPerm, ok := c.Get("extra_perm")
+		if !ok {
+			response.InternalError(c, "missing auth context")
+			return
+		}
+		response.Success(c, gin.H{
+			"user_id":    userID,
+			"username":   username,
+			"role":       role,
+			"extra_perm": extraPerm,
+		})
 	}
 }

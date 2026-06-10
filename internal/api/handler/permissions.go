@@ -17,12 +17,11 @@ func GetPermissionGroups() gin.HandlerFunc {
 
 func GetConnectionPermissions(mgr *connection.Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		conns, err := mgr.Get(c.Param("id"))
+		_, err := mgr.Get(c.Param("id"))
 		if err != nil {
 			response.Success(c, []string{})
 			return
 		}
-		_ = conns
 		perms := []string{
 			"database:" + c.Param("id") + ":read",
 			"database:" + c.Param("id") + ":write",

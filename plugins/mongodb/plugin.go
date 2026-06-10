@@ -3,6 +3,7 @@ package mongodb
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -48,14 +49,23 @@ func (p *mongoPlugin) Connect(ctx context.Context, cfg plugin.Config) error {
 }
 
 func (p *mongoPlugin) Ping(ctx context.Context) error {
+	if p.client == nil {
+		return fmt.Errorf("mongodb: not connected")
+	}
 	return p.client.Ping(ctx, nil)
 }
 
 func (p *mongoPlugin) Close() error {
+	if p.client == nil {
+		return nil
+	}
 	return p.client.Disconnect(context.Background())
 }
 
 func (p *mongoPlugin) Query(ctx context.Context, q string) (*plugin.Result, error) {
+	if p.db == nil {
+		return nil, fmt.Errorf("mongodb: not connected")
+	}
 	start := time.Now()
 
 	var pipeline bson.A
@@ -102,6 +112,9 @@ func (p *mongoPlugin) Query(ctx context.Context, q string) (*plugin.Result, erro
 }
 
 func (p *mongoPlugin) Execute(ctx context.Context, q string) (*plugin.Result, error) {
+	if p.db == nil {
+		return nil, fmt.Errorf("mongodb: not connected")
+	}
 	start := time.Now()
 
 	var cmd bson.D
@@ -121,6 +134,9 @@ func (p *mongoPlugin) Execute(ctx context.Context, q string) (*plugin.Result, er
 }
 
 func (p *mongoPlugin) Tables(ctx context.Context) ([]string, error) {
+	if p.db == nil {
+		return nil, fmt.Errorf("mongodb: not connected")
+	}
 	cols, err := p.db.ListCollectionNames(ctx, bson.M{})
 	if err != nil {
 		return nil, fmt.Errorf("mongodb: list collections: %w", err)
@@ -129,10 +145,16 @@ func (p *mongoPlugin) Tables(ctx context.Context) ([]string, error) {
 }
 
 func (p *mongoPlugin) Databases(ctx context.Context) ([]string, error) {
+	if p.client == nil {
+		return nil, fmt.Errorf("mongodb: not connected")
+	}
 	return p.client.ListDatabaseNames(ctx, bson.M{})
 }
 
 func (p *mongoPlugin) CreateDatabase(ctx context.Context, name string) error {
+	if p.client == nil {
+		return fmt.Errorf("mongodb: not connected")
+	}
 	db := p.client.Database(name)
 	err := db.CreateCollection(ctx, "_init_")
 	if err != nil {
@@ -142,10 +164,16 @@ func (p *mongoPlugin) CreateDatabase(ctx context.Context, name string) error {
 }
 
 func (p *mongoPlugin) DropDatabase(ctx context.Context, name string) error {
+	if p.client == nil {
+		return fmt.Errorf("mongodb: not connected")
+	}
 	return p.client.Database(name).Drop(ctx)
 }
 
 func (p *mongoPlugin) Schema(ctx context.Context) (*plugin.Schema, error) {
+	if p.db == nil {
+		return nil, fmt.Errorf("mongodb: not connected")
+	}
 	cols, err := p.Tables(ctx)
 	if err != nil {
 		return nil, err
@@ -155,8 +183,12 @@ func (p *mongoPlugin) Schema(ctx context.Context) (*plugin.Schema, error) {
 	for _, col := range cols {
 		info := plugin.TableInfo{Name: col}
 
-		count, _ := p.db.Collection(col).CountDocuments(ctx, bson.M{})
-		info.RowCount = count
+		count, err := p.db.Collection(col).CountDocuments(ctx, bson.M{})
+		if err != nil {
+			slog.Warn("mongodb: failed to count documents", "collection", col, "error", err)
+		} else {
+			info.RowCount = count
+		}
 
 		// Sample one document to infer schema
 		cursor := p.db.Collection(col).FindOne(ctx, bson.M{})

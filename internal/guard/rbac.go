@@ -58,7 +58,7 @@ func (g *Guard) FilterSuggestions(sugg []suggest.Suggestion, permissions []strin
 }
 
 func detectCommand(sql string) suggest.CommandType {
-	sql = strings.TrimSpace(strings.ToUpper(sql))
+	sql = trimSQL(sql)
 	switch {
 	case strings.HasPrefix(sql, "SELECT"):
 		return suggest.CmdSelect
@@ -78,5 +78,28 @@ func detectCommand(sql string) suggest.CommandType {
 		return suggest.CmdTruncate
 	default:
 		return suggest.CmdUnknown
+	}
+}
+
+// trimSQL strips leading whitespace and SQL comments, returning uppercase
+func trimSQL(sql string) string {
+	s := strings.TrimSpace(sql)
+	for {
+		switch {
+		case strings.HasPrefix(s, "--"):
+			if idx := strings.Index(s, "\n"); idx >= 0 {
+				s = strings.TrimSpace(s[idx+1:])
+			} else {
+				return ""
+			}
+		case strings.HasPrefix(s, "/*"):
+			if idx := strings.Index(s, "*/"); idx >= 0 {
+				s = strings.TrimSpace(s[idx+2:])
+			} else {
+				return ""
+			}
+		default:
+			return strings.ToUpper(s)
+		}
 	}
 }

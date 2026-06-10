@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { Layout, Menu, Button, theme, Dropdown, Avatar, Space, Typography, Tooltip } from 'antd'
+import { Layout, Menu, Button, theme, Dropdown, Avatar, Space, Typography, Tooltip, Spin } from 'antd'
 import {
   DashboardOutlined, DatabaseOutlined, ApiOutlined, UserOutlined, TeamOutlined,
   KeyOutlined, SettingOutlined, CodeOutlined, LogoutOutlined, MenuFoldOutlined,
@@ -25,11 +25,37 @@ export default function App() {
   const navigate = useNavigate()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
+  const [checking, setChecking] = useState(true)
+  const [authed, setAuthed] = useState(false)
   const { token: themeToken } = theme.useToken()
   const { darkMode, toggleDarkMode, lang, setLanguage } = useAppContext()
 
+  useEffect(() => {
+    const onUnauth = () => {
+      setAuthed(false)
+      navigate('/login')
+    }
+    api.onUnauthorized(onUnauth)
+
+    if (api.isAuthenticated()) {
+      api.verifySession().then(valid => {
+        setAuthed(valid)
+        setChecking(false)
+      }).catch(() => {
+        setAuthed(false)
+        setChecking(false)
+      })
+    } else {
+      setAuthed(false)
+      setChecking(false)
+    }
+
+    return () => { api.onUnauthorized(() => {}) }
+  }, [navigate])
+
   const handleLogout = () => {
     api.setToken(null)
+    setAuthed(false)
     navigate('/login')
   }
 
@@ -48,7 +74,15 @@ export default function App() {
     { key: '/admin/settings', icon: <SettingOutlined />, label: t('nav.settings') },
   ]
 
-  if (!api.isAuthenticated()) {
+  if (checking) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: darkMode ? '#141414' : '#f0f2f5' }}>
+        <Spin size="large" />
+      </div>
+    )
+  }
+
+  if (!authed) {
     return (
       <Routes>
         <Route path="/login" element={
@@ -61,7 +95,7 @@ export default function App() {
               background: darkMode ? '#1f1f1f' : '#fff',
               borderRadius: 12, boxShadow: '0 4px 24px rgba(0,0,0,0.08)'
             }}>
-              <LoginPage />
+              <LoginPage onLogin={() => { setAuthed(true); navigate('/') }} />
             </div>
           </div>
         } />
@@ -85,7 +119,7 @@ export default function App() {
         <Menu mode="inline" selectedKeys={[selectedKey]} items={menuItems}
           onClick={({ key }) => navigate(key)}
           style={{ borderInlineEnd: 'none' }}
-          theme={darkMode ? 'dark' : 'light'} />
+          theme={darkMode ? 'dark' : 'light'} aria-label={t('nav.dashboard')} />
       </Sider>
       <Layout>
         <Header style={{
@@ -101,7 +135,7 @@ export default function App() {
           <Space>
             <Tooltip title={lang === 'en' ? 'Deutsch' : 'English'}>
               <Button type="text" icon={<GlobalOutlined />}
-                onClick={() => setLanguage(lang === 'en' ? 'de' : 'de' as Lang)}>
+                onClick={() => setLanguage(lang === 'en' ? 'de' : 'en' as Lang)}>
                 {lang.toUpperCase()}
               </Button>
             </Tooltip>
@@ -138,7 +172,7 @@ export default function App() {
   )
 }
 
-function LoginPage() {
+function LoginPage({ onLogin }: { onLogin: () => void }) {
   const navigate = useNavigate()
   const { darkMode } = useAppContext()
   const [username, setUsername] = useState('')
@@ -152,7 +186,7 @@ function LoginPage() {
     const res = await api.login({ username, password })
     if (res.success && res.data?.token) {
       api.setToken(res.data.token)
-      navigate('/')
+      onLogin()
     } else {
       setError(res.error?.message || t('login.error'))
     }
@@ -167,40 +201,42 @@ function LoginPage() {
         <Text type="secondary">{t('app.tagline')}</Text>
       </div>
       {error && <div style={{ color: '#ff4d4f', marginBottom: 16, textAlign: 'center' }}>{error}</div>}
-      <input
-        placeholder={t('login.username')}
-        value={username}
-        onChange={e => setUsername(e.target.value)}
-        onKeyDown={e => e.key === 'Enter' && handleLogin()}
-        style={{
-          width: '100%', height: 40, marginBottom: 12, padding: '8px 12px',
-          border: '1px solid #d9d9d9', borderRadius: 8, fontSize: 14,
-          background: darkMode ? '#1f1f1f' : '#fff', color: darkMode ? '#fff' : '#000'
-        }}
-      />
-      <input
-        type="password"
-        placeholder={t('login.password')}
-        value={password}
-        onChange={e => setPassword(e.target.value)}
-        onKeyDown={e => e.key === 'Enter' && handleLogin()}
-        style={{
-          width: '100%', height: 40, marginBottom: 24, padding: '8px 12px',
-          border: '1px solid #d9d9d9', borderRadius: 8, fontSize: 14,
-          background: darkMode ? '#1f1f1f' : '#fff', color: darkMode ? '#fff' : '#000'
-        }}
-      />
-      <button
-        onClick={handleLogin}
-        disabled={loading}
-        style={{
-          width: '100%', height: 44, background: '#6366f1', color: '#fff',
-          border: 'none', borderRadius: 8, fontSize: 16, fontWeight: 600,
-          cursor: 'pointer', opacity: loading ? 0.7 : 1
-        }}
-      >
+      <form onSubmit={e => { e.preventDefault(); handleLogin() }}>
+        <input
+          aria-label={t('login.username')}
+          placeholder={t('login.username')}
+          value={username}
+          onChange={e => setUsername(e.target.value)}
+          style={{
+            width: '100%', height: 40, marginBottom: 12, padding: '8px 12px',
+            border: '1px solid #d9d9d9', borderRadius: 8, fontSize: 14,
+            background: darkMode ? '#1f1f1f' : '#fff', color: darkMode ? '#fff' : '#000'
+          }}
+        />
+        <input
+          type="password"
+          aria-label={t('login.password')}
+          placeholder={t('login.password')}
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          style={{
+            width: '100%', height: 40, marginBottom: 24, padding: '8px 12px',
+            border: '1px solid #d9d9d9', borderRadius: 8, fontSize: 14,
+            background: darkMode ? '#1f1f1f' : '#fff', color: darkMode ? '#fff' : '#000'
+          }}
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          style={{
+            width: '100%', height: 44, background: '#6366f1', color: '#fff',
+            border: 'none', borderRadius: 8, fontSize: 16, fontWeight: 600,
+            cursor: 'pointer', opacity: loading ? 0.7 : 1
+          }}
+        >
         {loading ? t('login.signing') : t('login.title')}
       </button>
-    </div>
+    </form>
+  </div>
   )
 }

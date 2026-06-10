@@ -66,15 +66,17 @@ func (m *Manager) Add(ctx context.Context, name string, typ plugin.DBType, sourc
 	if err := p.Connect(connCtx, cfg); err != nil {
 		mc.State = StateError
 		mc.Error = err.Error()
+		mc.UpdatedAt = time.Now()
+		m.conns[id] = mc
 		slog.Error("connection failed", "id", id, "type", typ, "error", err)
-	} else {
-		mc.State = StateConnected
-		mc.Latency = time.Since(start)
-		slog.Info("connection established", "id", id, "type", typ, "latency", mc.Latency)
+		return &mc.Connection, fmt.Errorf("connection: %q (%s): %w", name, typ, err)
 	}
 
+	mc.State = StateConnected
+	mc.Latency = time.Since(start)
 	mc.UpdatedAt = time.Now()
 	m.conns[id] = mc
+	slog.Info("connection established", "id", id, "type", typ, "latency", mc.Latency)
 	return &mc.Connection, nil
 }
 
@@ -139,6 +141,10 @@ func (m *Manager) Ping(ctx context.Context, id string) (time.Duration, error) {
 		return 0, err
 	}
 
+	if mc.State == StateError || mc.plugin == nil {
+		return 0, fmt.Errorf("connection: %q is not connected (%s)", id, mc.Error)
+	}
+
 	start := time.Now()
 	if err := mc.plugin.Ping(ctx); err != nil {
 		m.mu.Lock()
@@ -160,9 +166,24 @@ func (m *Manager) Ping(ctx context.Context, id string) (time.Duration, error) {
 	return latency, nil
 }
 
+// getActive returns a connection that is in a usable state
+func (m *Manager) getActive(id string) (*managedConn, error) {
+	mc, err := m.Get(id)
+	if err != nil {
+		return nil, err
+	}
+	if mc.State == StateError {
+		return nil, fmt.Errorf("connection: %q is in error state: %s", id, mc.Error)
+	}
+	if mc.plugin == nil {
+		return nil, fmt.Errorf("connection: %q has no plugin", id)
+	}
+	return mc, nil
+}
+
 // Query executes a read query on a connection
 func (m *Manager) Query(ctx context.Context, id string, query string) (*plugin.Result, error) {
-	mc, err := m.Get(id)
+	mc, err := m.getActive(id)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +192,7 @@ func (m *Manager) Query(ctx context.Context, id string, query string) (*plugin.R
 
 // Execute runs a write query on a connection
 func (m *Manager) Execute(ctx context.Context, id string, query string) (*plugin.Result, error) {
-	mc, err := m.Get(id)
+	mc, err := m.getActive(id)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +201,7 @@ func (m *Manager) Execute(ctx context.Context, id string, query string) (*plugin
 
 // Tables lists tables for a connection
 func (m *Manager) Tables(ctx context.Context, id string) ([]string, error) {
-	mc, err := m.Get(id)
+	mc, err := m.getActive(id)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +210,7 @@ func (m *Manager) Tables(ctx context.Context, id string) ([]string, error) {
 
 // Schema returns full schema for a connection
 func (m *Manager) Schema(ctx context.Context, id string) (*plugin.Schema, error) {
-	mc, err := m.Get(id)
+	mc, err := m.getActive(id)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +219,7 @@ func (m *Manager) Schema(ctx context.Context, id string) (*plugin.Schema, error)
 
 // Databases lists databases for a connection
 func (m *Manager) Databases(ctx context.Context, id string) ([]string, error) {
-	mc, err := m.Get(id)
+	mc, err := m.getActive(id)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +228,7 @@ func (m *Manager) Databases(ctx context.Context, id string) ([]string, error) {
 
 // CreateDatabase creates a new database
 func (m *Manager) CreateDatabase(ctx context.Context, id string, name string) error {
-	mc, err := m.Get(id)
+	mc, err := m.getActive(id)
 	if err != nil {
 		return err
 	}
@@ -216,7 +237,7 @@ func (m *Manager) CreateDatabase(ctx context.Context, id string, name string) er
 
 // DropDatabase drops a database
 func (m *Manager) DropDatabase(ctx context.Context, id string, name string) error {
-	mc, err := m.Get(id)
+	mc, err := m.getActive(id)
 	if err != nil {
 		return err
 	}
@@ -271,6 +292,8 @@ func (m *Manager) checkAll(ctx context.Context) {
 // generateID creates a short unique ID
 func generateID() string {
 	b := make([]byte, 4)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("conn-%d", time.Now().UnixNano())
+	}
 	return hex.EncodeToString(b)
 }

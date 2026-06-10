@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Row, Col, Card, Tree, Table, Button, Modal, Input, Space, Tag, Typography, message, Spin, Select, Tooltip, Popconfirm, Empty } from 'antd'
-import { DatabaseOutlined, TableOutlined, PlusOutlined, DeleteOutlined, ReloadOutlined, FolderOpenOutlined, ColumnHeightOutlined } from '@ant-design/icons'
+import { DatabaseOutlined, TableOutlined, PlusOutlined, DeleteOutlined, ReloadOutlined, FolderOpenOutlined } from '@ant-design/icons'
 import { api } from '../api/client'
 
 const { Text, Title } = Typography
@@ -53,7 +53,7 @@ export default function Explorer() {
     const idx = treeData.findIndex(n => n.key === connNode.key)
     if (idx === -1) return
     const r = await api.listDatabases(connId)
-    if (!r.success || !r.data) return
+    if (!r.success || !r.data) { message.error(r.error?.message || 'Failed to load databases'); return }
     const dbs = r.data.map((db: string) => ({
       title: db, key: `db:${connId}:${db}`, icon: <FolderOpenOutlined />, isLeaf: false, children: [],
     }))
@@ -64,7 +64,7 @@ export default function Explorer() {
 
   const loadTables = async (connId: string, dbName: string, dbNode: any) => {
     const r = await api.listTables(connId)
-    if (!r.success || !r.data) return
+    if (!r.success || !r.data) { message.error(r.error?.message || 'Failed to load tables'); return }
     const tables = r.data.map((t: string) => ({
       title: t, key: `tbl:${connId}:${t}`, icon: <TableOutlined />, isLeaf: true, dataType: 'table',
     }))
@@ -149,16 +149,16 @@ export default function Explorer() {
     else message.error(r.error?.message || 'Failed')
   }
 
-  const browseColumns = browseData?.columns?.map((c: string) => ({
+  const browseColumns = useMemo(() => browseData?.columns?.map((c: string) => ({
     title: c, dataIndex: c, key: c, ellipsis: true,
     render: (v: any) => v === null ? <Text type="secondary">NULL</Text> : String(v),
-  })) || []
+  })) || [], [browseData])
 
-  const browseDataSource = browseData?.data?.map((row: any[], i: number) => {
+  const browseDataSource = useMemo(() => browseData?.data?.map((row: any[], i: number) => {
     const obj: Record<string, any> = { _key: i }
     browseData.columns.forEach((col: string, ci: number) => { obj[col] = row[ci] })
     return obj
-  }) || []
+  }) || [], [browseData])
 
   return (
     <div style={{ height: 'calc(100vh - 160px)' }}>
@@ -191,7 +191,7 @@ export default function Explorer() {
           <Card size="small" title="Explorer" style={{ height: '100%', overflow: 'auto' }}>
             {loading ? <Spin style={{ display: 'block', margin: '40px auto' }} /> : (
               treeData.length === 0 ? <Empty description="No connections" /> :
-              <Tree treeData={treeData} onSelect={onSelect} showIcon defaultExpandAll />
+              <Tree treeData={treeData} onSelect={onSelect} showIcon defaultExpandAll aria-label="Database tree" />
             )}
           </Card>
         </Col>

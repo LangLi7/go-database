@@ -90,7 +90,7 @@ func CreateTable(mgr *connection.Manager) gin.HandlerFunc {
 
 func DropTable(mgr *connection.Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		_, err := mgr.Execute(c.Request.Context(), c.Param("id"), "DROP TABLE IF EXISTS "+c.Param("name"))
+		_, err := mgr.Execute(c.Request.Context(), c.Param("id"), "DROP TABLE IF EXISTS "+quoteTable(c.Param("name")))
 		if err != nil {
 			response.Error(c, http.StatusBadGateway, "EXEC_FAILED", err.Error())
 			return

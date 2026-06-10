@@ -77,10 +77,11 @@ func (e *Executor) Execute(ctx context.Context, req ExecutionRequest) *Execution
 	var err error
 
 	start := time.Now()
-	isQuery := strings.HasPrefix(strings.ToUpper(sql), "SELECT") ||
-		strings.HasPrefix(strings.ToUpper(sql), "SHOW") ||
-		strings.HasPrefix(strings.ToUpper(sql), "DESCRIBE") ||
-		strings.HasPrefix(strings.ToUpper(sql), "EXPLAIN")
+	trimmed := trimSQL(sql)
+	isQuery := strings.HasPrefix(trimmed, "SELECT") ||
+		strings.HasPrefix(trimmed, "SHOW") ||
+		strings.HasPrefix(trimmed, "DESCRIBE") ||
+		strings.HasPrefix(trimmed, "EXPLAIN")
 
 	if isQuery {
 		result, err = e.mgr.Query(ctx, req.ConnectionID, sql)
@@ -139,4 +140,27 @@ func (e *Executor) estimateAffected(ctx context.Context, connID, sql string) *pl
 	}
 
 	return nil
+}
+
+// trimSQL strips leading whitespace and SQL comments from a SQL string
+func trimSQL(sql string) string {
+	s := strings.TrimSpace(sql)
+	for {
+		switch {
+		case strings.HasPrefix(s, "--"):
+			if idx := strings.Index(s, "\n"); idx >= 0 {
+				s = strings.TrimSpace(s[idx+1:])
+			} else {
+				return ""
+			}
+		case strings.HasPrefix(s, "/*"):
+			if idx := strings.Index(s, "*/"); idx >= 0 {
+				s = strings.TrimSpace(s[idx+2:])
+			} else {
+				return ""
+			}
+		default:
+			return strings.ToUpper(s)
+		}
+	}
 }

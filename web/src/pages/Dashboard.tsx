@@ -12,13 +12,20 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
     Promise.all([
       api.listConnections(),
       api.listUsers(),
     ]).then(([connRes, userRes]) => {
+      if (cancelled) return
       if (connRes.success) setConnections(connRes.data || [])
       if (userRes.success) setUsers(userRes.data || [])
-    }).finally(() => setLoading(false))
+    }).catch(() => {
+      if (!cancelled) setConnections([])
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => { cancelled = true }
   }, [])
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '80px auto' }} />

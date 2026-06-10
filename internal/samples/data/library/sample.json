@@ -1,0 +1,93 @@
+{
+  "name": "Library",
+  "description": "Bibliotheksverwaltung mit B\u00fcchern, Autoren, Mitgliedern und Ausleihen. Zeigt M:N-Beziehungen (B\u00fccher <-> Autoren via book_authors) und Datumsberechnungen.",
+  "version": "1.0",
+  "tables": [
+    {
+      "name": "authors",
+      "comment": "Autoren",
+      "columns": [
+        {"name": "id", "type": "integer", "pk": true, "autoincrement": true},
+        {"name": "first_name", "type": "text", "notnull": true},
+        {"name": "last_name", "type": "text", "notnull": true},
+        {"name": "birth_year", "type": "integer", "notnull": false}
+      ],
+      "rows": [
+        {"id": 1, "first_name": "Frank", "last_name": "Sch\u00e4tzing", "birth_year": 1957},
+        {"id": 2, "first_name": "J.K.", "last_name": "Rowling", "birth_year": 1965},
+        {"id": 3, "first_name": "Stephen", "last_name": "King", "birth_year": 1947},
+        {"id": 4, "first_name": "Haruki", "last_name": "Murakami", "birth_year": 1949},
+        {"id": 5, "first_name": "Agatha", "last_name": "Christie", "birth_year": 1890}
+      ]
+    },
+    {
+      "name": "books",
+      "comment": "B\u00fccher",
+      "columns": [
+        {"name": "id", "type": "integer", "pk": true, "autoincrement": true},
+        {"name": "title", "type": "text", "notnull": true},
+        {"name": "isbn", "type": "text", "notnull": true, "unique": true},
+        {"name": "published_year", "type": "integer", "notnull": false},
+        {"name": "copies", "type": "integer", "notnull": true, "default": 1},
+        {"name": "category", "type": "text", "notnull": false}
+      ],
+      "rows": [
+        {"id": 1, "title": "Der Schwarm", "isbn": "978-3-462-12345-6", "published_year": 2004, "copies": 5, "category": "Thriller"},
+        {"id": 2, "title": "Harry Potter und der Stein der Weisen", "isbn": "978-3-551-12345-7", "published_year": 1997, "copies": 8, "category": "Fantasy"},
+        {"id": 3, "title": "Es", "isbn": "978-3-453-12345-8", "published_year": 1986, "copies": 3, "category": "Horror"},
+        {"id": 4, "title": "Kafka am Strand", "isbn": "978-3-832-12345-9", "published_year": 2002, "copies": 4, "category": "Literatur"},
+        {"id": 5, "title": "Mord im Orient-Express", "isbn": "978-3-502-12345-0", "published_year": 1934, "copies": 6, "category": "Krimi"}
+      ]
+    },
+    {
+      "name": "book_authors",
+      "comment": "M:N-Verkn\u00fcpfung B\u00fccher <-> Autoren",
+      "columns": [
+        {"name": "book_id", "type": "integer", "notnull": true, "ref": {"table": "books", "column": "id"}},
+        {"name": "author_id", "type": "integer", "notnull": true, "ref": {"table": "authors", "column": "id"}}
+      ],
+      "rows": [
+        {"book_id": 1, "author_id": 1},
+        {"book_id": 2, "author_id": 2},
+        {"book_id": 3, "author_id": 3},
+        {"book_id": 4, "author_id": 4},
+        {"book_id": 5, "author_id": 5}
+      ]
+    },
+    {
+      "name": "members",
+      "comment": "Bibliotheksmitglieder",
+      "columns": [
+        {"name": "id", "type": "integer", "pk": true, "autoincrement": true},
+        {"name": "first_name", "type": "text", "notnull": true},
+        {"name": "last_name", "type": "text", "notnull": true},
+        {"name": "email", "type": "text", "notnull": true, "unique": true},
+        {"name": "joined_date", "type": "text", "notnull": true}
+      ],
+      "rows": [
+        {"id": 1, "first_name": "Emma", "last_name": "Braun", "email": "emma@mail.de", "joined_date": "2022-01-10"},
+        {"id": 2, "first_name": "Noah", "last_name": "Wagner", "email": "noah@mail.de", "joined_date": "2022-06-15"},
+        {"id": 3, "first_name": "Marie", "last_name": "Zimmermann", "email": "marie@mail.de", "joined_date": "2023-03-20"}
+      ]
+    },
+    {
+      "name": "loans",
+      "comment": "Ausleihen (1:N zu members und books)",
+      "columns": [
+        {"name": "id", "type": "integer", "pk": true, "autoincrement": true},
+        {"name": "member_id", "type": "integer", "notnull": true, "ref": {"table": "members", "column": "id"}},
+        {"name": "book_id", "type": "integer", "notnull": true, "ref": {"table": "books", "column": "id"}},
+        {"name": "loan_date", "type": "text", "notnull": true},
+        {"name": "due_date", "type": "text", "notnull": true},
+        {"name": "return_date", "type": "text", "notnull": false}
+      ],
+      "rows": [
+        {"id": 1, "member_id": 1, "book_id": 2, "loan_date": "2024-02-01", "due_date": "2024-02-15", "return_date": "2024-02-14"},
+        {"id": 2, "member_id": 1, "book_id": 5, "loan_date": "2024-02-01", "due_date": "2024-02-15", "return_date": null},
+        {"id": 3, "member_id": 2, "book_id": 1, "loan_date": "2024-03-10", "due_date": "2024-03-24", "return_date": "2024-03-20"},
+        {"id": 4, "member_id": 3, "book_id": 3, "loan_date": "2024-04-05", "due_date": "2024-04-19", "return_date": null},
+        {"id": 5, "member_id": 3, "book_id": 4, "loan_date": "2024-04-05", "due_date": "2024-04-19", "return_date": "2024-04-18"}
+      ]
+    }
+  ]
+}

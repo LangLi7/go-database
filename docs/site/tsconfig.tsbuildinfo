@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/codeblock.tsx","./src/components/header.tsx","./src/components/search.tsx","./src/components/sidebar.tsx","./src/components/themeprovider.tsx","./src/data/endpoints.ts","./src/data/permissions.ts","./src/pages/apidocs.tsx","./src/pages/dashboard.tsx","./src/pages/home.tsx"],"version":"5.7.3"}

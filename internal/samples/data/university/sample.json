@@ -1,0 +1,85 @@
+{
+  "name": "University",
+  "description": "Universit\u00e4tsverwaltung mit Studenten, Kursen, Professoren und Einschreibungen. Zeigt M:N-Beziehungen (Studenten <-> Kurse via enrollments) und Composite-Keys.",
+  "version": "1.0",
+  "tables": [
+    {
+      "name": "professors",
+      "comment": "Professoren",
+      "columns": [
+        {"name": "id", "type": "integer", "pk": true, "autoincrement": true},
+        {"name": "first_name", "type": "text", "notnull": true},
+        {"name": "last_name", "type": "text", "notnull": true},
+        {"name": "email", "type": "text", "notnull": true, "unique": true},
+        {"name": "department", "type": "text", "notnull": false}
+      ],
+      "rows": [
+        {"id": 1, "first_name": "Dr.", "last_name": "Hartmann", "email": "hartmann@uni.de", "department": "Informatik"},
+        {"id": 2, "first_name": "Prof.", "last_name": "Beck", "email": "beck@uni.de", "department": "Mathematik"},
+        {"id": 3, "first_name": "Dr.", "last_name": "Lorenz", "email": "lorenz@uni.de", "department": "Physik"},
+        {"id": 4, "first_name": "Prof.", "last_name": "Krause", "email": "krause@uni.de", "department": "Informatik"}
+      ]
+    },
+    {
+      "name": "courses",
+      "comment": "Kurse/Veranstaltungen",
+      "columns": [
+        {"name": "id", "type": "integer", "pk": true, "autoincrement": true},
+        {"name": "title", "type": "text", "notnull": true},
+        {"name": "credits", "type": "integer", "notnull": true},
+        {"name": "professor_id", "type": "integer", "notnull": true, "ref": {"table": "professors", "column": "id"}},
+        {"name": "max_students", "type": "integer", "notnull": true, "default": 30}
+      ],
+      "rows": [
+        {"id": 1, "title": "Datenbanken 1", "credits": 6, "professor_id": 1, "max_students": 50},
+        {"id": 2, "title": "Algorithmen", "credits": 8, "professor_id": 4, "max_students": 40},
+        {"id": 3, "title": "Lineare Algebra", "credits": 6, "professor_id": 2, "max_students": 60},
+        {"id": 4, "title": "Quantenmechanik", "credits": 8, "professor_id": 3, "max_students": 30},
+        {"id": 5, "title": "Web Engineering", "credits": 6, "professor_id": 1, "max_students": 35}
+      ]
+    },
+    {
+      "name": "students",
+      "comment": "Studenten",
+      "columns": [
+        {"name": "id", "type": "integer", "pk": true, "autoincrement": true},
+        {"name": "matriculation_number", "type": "text", "notnull": true, "unique": true},
+        {"name": "first_name", "type": "text", "notnull": true},
+        {"name": "last_name", "type": "text", "notnull": true},
+        {"name": "email", "type": "text", "notnull": true, "unique": true},
+        {"name": "enrolled_semester", "type": "text", "notnull": true}
+      ],
+      "rows": [
+        {"id": 1, "matriculation_number": "MAT-2023-001", "first_name": "Lena", "last_name": "Schwarz", "email": "lena@uni.de", "enrolled_semester": "WS2023"},
+        {"id": 2, "matriculation_number": "MAT-2023-002", "first_name": "Jonas", "last_name": "Thiel", "email": "jonas@uni.de", "enrolled_semester": "WS2023"},
+        {"id": 3, "matriculation_number": "MAT-2024-001", "first_name": "Mia", "last_name": "Huber", "email": "mia@uni.de", "enrolled_semester": "SS2024"},
+        {"id": 4, "matriculation_number": "MAT-2024-002", "first_name": "Ben", "last_name": "Konig", "email": "ben@uni.de", "enrolled_semester": "SS2024"},
+        {"id": 5, "matriculation_number": "MAT-2024-003", "first_name": "Lara", "last_name": "Peters", "email": "lara@uni.de", "enrolled_semester": "SS2024"}
+      ]
+    },
+    {
+      "name": "enrollments",
+      "comment": "Einschreibungen (M:N Studenten <-> Kurse) mit Note",
+      "columns": [
+        {"name": "student_id", "type": "integer", "notnull": true, "ref": {"table": "students", "column": "id"}},
+        {"name": "course_id", "type": "integer", "notnull": true, "ref": {"table": "courses", "column": "id"}},
+        {"name": "semester", "type": "text", "notnull": true},
+        {"name": "grade", "type": "real", "notnull": false}
+      ],
+      "rows": [
+        {"student_id": 1, "course_id": 1, "semester": "WS2023", "grade": 1.3},
+        {"student_id": 1, "course_id": 2, "semester": "WS2023", "grade": 1.7},
+        {"student_id": 1, "course_id": 3, "semester": "SS2024", "grade": 2.0},
+        {"student_id": 2, "course_id": 1, "semester": "WS2023", "grade": 2.3},
+        {"student_id": 2, "course_id": 3, "semester": "SS2024", "grade": 1.0},
+        {"student_id": 3, "course_id": 4, "semester": "SS2024", "grade": null},
+        {"student_id": 3, "course_id": 5, "semester": "SS2024", "grade": null},
+        {"student_id": 4, "course_id": 1, "semester": "SS2024", "grade": null},
+        {"student_id": 4, "course_id": 2, "semester": "SS2024", "grade": null},
+        {"student_id": 4, "course_id": 5, "semester": "SS2024", "grade": null},
+        {"student_id": 5, "course_id": 3, "semester": "SS2024", "grade": 1.7},
+        {"student_id": 5, "course_id": 5, "semester": "SS2024", "grade": 2.7}
+      ]
+    }
+  ]
+}

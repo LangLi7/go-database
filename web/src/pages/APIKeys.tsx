@@ -22,9 +22,10 @@ export default function APIKeys() {
 
   useEffect(() => { load() }, [])
 
-  const handleCreate = async () => {
-    const vals = await form.validateFields()
-    const r = await api.createAPIKey(vals)
+	const handleCreate = async () => {
+		let vals: Record<string, any>
+		try { vals = await form.validateFields() } catch { return }
+		const r = await api.createAPIKey({ name: vals.name || '', permissions: vals.permissions || [] })
     if (r.success && r.data) {
       setNewKey(r.data)
       message.success('API Key created')
