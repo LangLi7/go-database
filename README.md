@@ -211,7 +211,3 @@ make build-server-quick # Nur Go (ohne UI)
 ```
 
 ---
-
-## Lizenz
-
-MIT
