@@ -1,5 +1,35 @@
 # Local Models Cookbook
 
+## ✅ Verifiziert getestet (mit AI-Agent, NL→Tool→SQL)
+
+Diese Modelle wurden end-to-end durch den AI-Agent getestet (`/api/v1/agent/chat`:
+list_connections → list_tables → SELECT via natürlicher Sprache). Alle bestanden.
+
+| Modell | Variante | Pfad (relativ zu Projekt) | Speed | Empfehlung |
+|--------|----------|---------------------------|-------|------------|
+| 🥇 **Ornith 1.0 9B** | Q4_K_M | `models/Ornith-1.0-9B-GGUF/ornith-1.0-9b-Q4_K_M.gguf` | **~2-4s** | Default |
+| 🥈 **DeepSeek R1 14B Uncensored** | Q4_K_S | `models/DeepSeek-R1-Distill-Qwen-14B-Uncensored-GGUF/DeepSeek-R1-Distill-Qwen-14B-Uncensored.Q4_K_S.gguf` | ~3-5s | Beste SQL |
+| DeepSeek R1 8B | Q4_K_M | `models/DeepSeek-R1-0528-Qwen3-8B-GGUF/DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf` | ~3-10s | Alternative |
+
+**Aktivierung** (`config/config.yaml`, Ornith als Default):
+```yaml
+mcp:
+  enabled: true
+  provider: "llamacpp"
+  model: "models/Ornith-1.0-9B-GGUF/ornith-1.0-9b-Q4_K_M.gguf"
+  llamacpp:
+    auto_start: true
+    port: 8081
+```
+
+`llama-server` wird automatisch aus den installierten LM-Studio-Backends gefunden
+(`~/.lmstudio/extensions/backends/`, avx2-CPU-Build wird bevorzugt — CUDA-Builds
+brauchen CUDA-DLLs, die standalone fehlen und mit Exit 127 abbrechen).
+
+**Hinweis Nebenläufigkeit:** Die REST- und Agent-API sind voll parallel (Go-Goroutines,
+`sync.RWMutex` im ConnectionManager). Der lokale `llama-server` verarbeitet Prompts
+aber **seriell** (1 Slot) — für Multi-User-AI `--parallel N --cont-batching` ergänzen.
+
 ## Installierte Modelle (LM Studio)
 
 | Modell | Variante | Größe | RAM | Publisher | Typ |
