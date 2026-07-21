@@ -54,3 +54,4 @@ models/
 *.gguf
 *.safetensors
 start.bat
+_*/
