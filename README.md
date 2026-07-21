@@ -33,6 +33,8 @@ Minecraft ───┘                            │            ├─── Mo
 - **API-Keys** — Generate (crypto/rand + SHA256), Revoke
 - **Saisonale Themes** — Dark/Light + Christmas/Halloween/Easter
 - **Samples & Import** — Vorgefertigte JSON-Beispieldaten laden
+- **AI/LLM Integration** — NL→SQL via OpenRouter (FREE + optional Paid-Fallback), LM Studio oder Ollama; MCP-Server (7 Tools) steuerbar per Config
+- **LM Studio Modelle** — `GET /api/v1/models/local` zeigt verfügbare GGUF-Modelle an
 - **Internal DB** — Wählbar: SQLite (default) oder PostgreSQL
 - **API-only** — Single Binary (reines Go-Backend, kein eingebettetes Frontend)
 - **OpenAPI-kompatibel** — Alle Fehler als `{success, data, error, meta}`
@@ -94,6 +96,7 @@ als **separater Client** (siehe `docs/DECISIONS.md` ADR-005).
 make build
 ./bin/go-database
 # oder: go run ./cmd/server/
+# oder: go run ./cmd/godb       (Launcher – baut + startet selbst, kein make nötig)
 
 # Mit PostgreSQL als internem Auth-Store (optional):
 GODB_INTERNAL_DB_AUTH_URL=postgres://user:***@localhost:5432/godb_auth ./bin/go-database

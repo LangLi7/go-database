@@ -1,6 +1,8 @@
 package router
 
 import (
+	"context"
+
 	"github.com/gin-gonic/gin"
 
 	"go-database/internal/api/handler"
@@ -252,4 +254,22 @@ func SetupRoutes(r *gin.Engine, store *internaldb.Store, connMgr *connection.Man
 			loadGroup.POST("/import/csv", handler.ImportCSV(connMgr))
 		}
 	}
+
+	// Public model discovery (no auth required)
+	r.GET("/api/v1/models/local", handler.HandleLocalModels())
+	r.GET("/api/v1/models/remote", handler.HandleRemoteModels())
+
+	// AI Agent chat + SSE
+	logFn := func(action, details string) {
+		_ = store.LogAudit(context.Background(), "system", action, details)
+	}
+	r.POST("/api/v1/agent/chat", handler.HandleAgentChat(logFn))
+	r.GET("/api/v1/agent/stream", handler.HandleAgentStream(logFn))
+
+	// AI Setup wizard
+	r.POST("/api/v1/setup/ai", handler.HandleAISetup())
+
+	// Documentation server (renders docs/*.md as HTML)
+	r.GET("/docs", handler.HandleDocsRedirect)
+	r.GET("/docs/*slug", handler.HandleDocs)
 }

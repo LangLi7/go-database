@@ -81,11 +81,22 @@ type InternalDB struct {
 	AuthURL  string `json:"auth_url" yaml:"auth_url"` // PostgreSQL DSN (postgres://...), overrides AuthPath
 }
 
+// MCP holds the MCP server / NL2SQL configuration.
+type MCP struct {
+	Enabled      bool   `json:"enabled" yaml:"enabled"`
+	Endpoint     string `json:"endpoint" yaml:"endpoint"`           // HTTP path for MCP tools
+	APIKey       string `json:"api_key" yaml:"api_key"`             // Bearer token for MCP HTTP endpoints
+	Provider     string `json:"provider" yaml:"provider"`           // "openrouter" | "ollama" | "lmstudio"
+	Model        string `json:"model" yaml:"model"`                 // model name or "free"
+	FallbackPaid bool   `json:"fallback_paid" yaml:"fallback_paid"` // allow paid fallback when free models fail
+}
+
 // Config is the root configuration
 type Config struct {
 	Server     Server     `json:"server" yaml:"server"`
 	Auth       Auth       `json:"auth" yaml:"auth"`
 	InternalDB InternalDB `json:"internal_db" yaml:"internal_db"`
+	MCP        MCP        `json:"mcp" yaml:"mcp"`
 	LogLevel   string     `json:"log_level" yaml:"log_level"`
 	DataDir    string     `json:"data_dir" yaml:"data_dir"` // root for internal DBs
 }
@@ -176,6 +187,22 @@ func (c *Config) setDefaults() {
 	}
 	if c.LogLevel == "" {
 		c.LogLevel = "info"
+	}
+	if !c.MCP.Enabled {
+		c.MCP.Enabled = false
+	}
+	if c.MCP.Endpoint == "" {
+		c.MCP.Endpoint = "/api/v1/mcp"
+	}
+	if c.MCP.Provider == "" {
+		c.MCP.Provider = "openrouter"
+	}
+	if c.MCP.Model == "" {
+		c.MCP.Model = "free"
+	}
+	// FallbackPaid defaults to false — user must explicitly allow paid model usage.
+	if !c.MCP.FallbackPaid {
+		c.MCP.FallbackPaid = false
 	}
 	// Harden JWT secret: if default or empty, generate a random one at startup
 	if c.Auth.JWTSecret == "" || c.Auth.JWTSecret == "change-me-in-production" {

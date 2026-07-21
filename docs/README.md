@@ -22,6 +22,9 @@ Datenbanken); das Frontend (Dashboard/Admin-UI) ist ein **separater Client**
 - **PROTOCOLS.md** — Alle Protokolle: REST/WS/SSE (✅) + GraphQL/gRPC/OData/JSON-RPC/
   SOAP/MQTT/Webhooks/FIX (📋 Design-Spec).
 - **CRYPTO.md** — Kryptographie-Anleitung: Algorithmen, Endpoints, Bedrohungsmodell, Zero-Trust, JtR.
+- **LLM.md** — LLM/AI-Subsystem: Provider (OpenRouter/LM Studio/Ollama), Modell-Entdeckung, Free→Paid Fallback.
+- **LOCAL_MODELS.md** — Local Models Cookbook: installierte Modelle, RAM, Quantisierung, Downloads, Konfiguration.
+- **MCP.md** — MCP-Server: Tools (`list_connections`, `query`, `execute`, `list_tables`, `schema`, `list_databases`, `nl2sql`).
 
 ## Projektstruktur (Kurzform)
 ```

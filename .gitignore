@@ -2,7 +2,10 @@
 bin/
 go-database
 go-database.exe
+mcp
+mcp.exe
 server.exe
+*.test
 
 # Frontend (removed — frontend is a separate client, see DECISIONS.md ADR-005)
 web/
@@ -45,3 +48,9 @@ tree.txt
 Thumbs.db
 .vscode/
 .idea/
+
+# Model files (GGUF, safetensors) — nicht committen, nur docs/LOCAL_MODELS.md
+models/
+*.gguf
+*.safetensors
+start.bat

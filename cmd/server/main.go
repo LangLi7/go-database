@@ -12,6 +12,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"go-database/internal/agent"
+	"go-database/internal/api/handler"
 	"go-database/internal/api/middleware"
 	"go-database/internal/api/router"
 	"go-database/internal/auth"
@@ -19,6 +21,8 @@ import (
 	"go-database/internal/connection"
 	"go-database/internal/crypto"
 	"go-database/internal/internaldb"
+	"go-database/internal/llm"
+	mcp "go-database/internal/mcp"
 	"go-database/internal/provisioner"
 	"go-database/internal/scheduler"
 	"go-database/internal/transfer"
@@ -114,6 +118,29 @@ func main() {
 	}
 	cryptoSvc := crypto.NewService(cryptoStore)
 	slog.Info("encryption service ready", "algorithms", "aes-256-gcm, aes-256-cbc+hmac, chacha20-poly1305, rsa-oaep-4096, x25519-hybrid")
+
+	// ---- MCP Server (config-gesteuert) ----
+	if cfg.MCP.Enabled {
+		if err := mcp.ValidateMCPConfig(cfg.MCP.Provider, cfg.MCP.Model, cfg.MCP.APIKey); err != nil {
+			slog.Error("invalid mcp config", "error", err)
+		} else {
+			mcp.SetDBGate(connMgr)
+			mcp.SetNL2SQLConfig(cfg.MCP.Provider, cfg.MCP.Model, cfg.MCP.APIKey, "", cfg.MCP.FallbackPaid)
+			mcpHandler := mcp.HTTPHandler(mcp.APIKeyMiddleware(cfg.MCP.APIKey))
+			r.Any(cfg.MCP.Endpoint, gin.WrapH(mcpHandler))
+			slog.Info("mcp http endpoint ready", "path", cfg.MCP.Endpoint, "provider", cfg.MCP.Provider)
+		}
+	}
+
+	// ---- AI Agent (uses same LLM client as MCP) ----
+	llmClient := llm.NewClient(cfg.MCP.Provider, cfg.MCP.APIKey, cfg.MCP.Model, "", cfg.MCP.FallbackPaid)
+	auditFn := func(action, details string) { _ = store.LogAudit(ctx, "system", action, details) }
+	agent.InitAgent(llmClient, connMgr, auditFn)
+	handler.SetAgentLLM(llmClient)
+	slog.Info("ai agent ready", "provider", cfg.MCP.Provider)
+
+	// ---- Documentation ----
+	handler.InitDocs()
 
 	// ---- Routes ----
 	router.SetupRoutes(r, store, connMgr, jwtSvc, apikeySvc, transferEngine, sched, schedStore, cryptoSvc)

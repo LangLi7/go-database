@@ -6,13 +6,23 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -buildvcs=false -o /go-database ./cmd/server/
 
+# Build MCP stdio server
+RUN CGO_ENABLED=0 go build -buildvcs=false -o /go-database-mcp ./cmd/mcp/
+
 # Runtime
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates curl
 WORKDIR /app
 COPY --from=server-builder /go-database .
+COPY --from=server-builder /go-database-mcp .
 COPY config/config.yaml ./config/config.yaml
 COPY database/ ./database/
+COPY models/ ./models/
 
 EXPOSE 8080
+
+# Healthcheck (requires server to be running)
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD curl -sf http://localhost:8080/health || exit 1
+
 CMD ["./go-database"]

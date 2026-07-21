@@ -537,6 +537,72 @@ Letzte Requests.
 
 ---
 
+## LLM / AI — Modell-Entdeckung
+
+Die go-database API kann verfügbare AI-Modelle aus zwei Quellen abfragen –
+lokal (LM Studio) und remote (OpenRouter FREE-Modelle).
+
+### `GET /api/v1/models/local`
+
+Lokale Modelle aus LM Studio (läuft auf `http://localhost:1234`).
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "key": "deepseek-r1-distill-qwen-14b",
+      "display_name": "DeepSeek R1 Distill Qwen 14B",
+      "publisher": "lmstudio-community",
+      "architecture": "qwen2",
+      "quantization": {"name": "Q4_K_M", "bits_per_weight": 4},
+      "size_bytes": 8988109952,
+      "params_string": "14B",
+      "format": "gguf",
+      "capabilities": {"vision": false, "trained_for_tool_use": false}
+    }
+  ]
+}
+```
+
+**Fehlerfall** (LM Studio nicht erreichbar): leeres Array `[]`.
+
+---
+
+### `GET /api/v1/models/remote`
+
+Kostenlose Modelle von OpenRouter (FREE). `Authorization: Bearer <key>` optional für vollständige Liste.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {"id": "google/gemma-4-31b-it:free", "pricing": {"prompt": "0", "completion": "0"}},
+    {"id": "nvidia/nemotron-3-nano-30b-a3b:free", "pricing": {"prompt": "0", "completion": "0"}}
+  ]
+}
+```
+
+**Fallback:** Wenn OpenRouter nicht erreichbar ist → hartcodierte FREE-Liste.
+
+---
+
+### MCP-Server
+
+Der MCP-Server (separater Stdio-Prozess oder optionaler HTTP-Endpoint)
+stellt 7 Tools bereit: `list_connections`, `query`, `execute`, `list_tables`,
+`schema`, `list_databases`, `nl2sql`. Details → **`docs/MCP.md`**.
+
+### LLM-Client (Provider)
+
+Einheitliches Interface für OpenRouter (FREE→Paid Fallback), LM Studio und
+Ollama. Konfiguration via `config/config.yaml` (`mcp.*`) oder
+`GODB_MCP_*` Umgebungsvariablen. Details → **`docs/LLM.md`**.
+
+---
+
 ## Health
 
 ### GET /health
