@@ -20,16 +20,38 @@ func GetStats(mgr *connection.Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		conns := mgr.List()
 		online := 0
+		totalLatency := 0.0
+		byType := make(map[string]int)
+		var connections []gin.H
+
 		for _, conn := range conns {
 			if conn.State == connection.StateConnected {
 				online++
+				totalLatency += float64(conn.Latency)
 			}
+			byType[string(conn.Type)]++
+			connections = append(connections, gin.H{
+				"id":         conn.ID,
+				"name":       conn.Name,
+				"type":       conn.Type,
+				"state":      conn.State,
+				"latency_ms": int64(conn.Latency),
+				"source":     conn.Source,
+			})
+		}
+
+		avgLatency := 0.0
+		if online > 0 {
+			avgLatency = totalLatency / float64(online)
 		}
 
 		response.Success(c, gin.H{
-			"connections_total": len(conns),
-			"connections_online": online,
+			"connections_total":   len(conns),
+			"connections_online":  online,
 			"connections_offline": len(conns) - online,
+			"avg_latency_ms":      avgLatency,
+			"connections_by_type": byType,
+			"connections":         connections,
 		})
 	}
 }
@@ -106,9 +128,9 @@ func GetActivity(store *internaldb.Store) gin.HandlerFunc {
 // --- Users ---
 
 type userRequest struct {
-	Username string   `json:"username" binding:"required"`
-	Password string   `json:"password,omitempty"`
-	Role     string   `json:"role" binding:"required"`
+	Username  string   `json:"username" binding:"required"`
+	Password  string   `json:"password,omitempty"`
+	Role      string   `json:"role" binding:"required"`
 	ExtraPerm []string `json:"extra_perm"`
 }
 
@@ -122,9 +144,9 @@ func ListUsers(store *internaldb.Store) gin.HandlerFunc {
 		}
 		// Mask password hashes
 		type safeUser struct {
-			ID       string   `json:"id"`
-			Username string   `json:"username"`
-			Role     string   `json:"role"`
+			ID        string   `json:"id"`
+			Username  string   `json:"username"`
+			Role      string   `json:"role"`
 			ExtraPerm []string `json:"extra_perm,omitempty"`
 		}
 		result := make([]safeUser, len(users))
@@ -151,11 +173,11 @@ func CreateUser(store *internaldb.Store) gin.HandlerFunc {
 		}
 
 		user := auth.User{
-			ID:       fmt.Sprintf("user-%d", time.Now().Unix()),
-			Username: req.Username,
+			ID:           fmt.Sprintf("user-%d", time.Now().Unix()),
+			Username:     req.Username,
 			PasswordHash: hash,
-			Role:     req.Role,
-			ExtraPerm: req.ExtraPerm,
+			Role:         req.Role,
+			ExtraPerm:    req.ExtraPerm,
 		}
 
 		if err := store.SaveUser(c.Request.Context(), user); err != nil {
@@ -253,12 +275,12 @@ func GetUserPermissions(store *internaldb.Store) gin.HandlerFunc {
 
 		effective := auth.GetEffectivePerms(role.Permissions, user.ExtraPerm)
 		response.Success(c, gin.H{
-			"user_id":       user.ID,
-			"role":          user.Role,
-			"role_perms":    role.Permissions,
-			"extra_perms":   user.ExtraPerm,
-			"effective":     effective,
-			"db_access":     append(role.DBAccess, user.ExtraDBAccess...),
+			"user_id":     user.ID,
+			"role":        user.Role,
+			"role_perms":  role.Permissions,
+			"extra_perms": user.ExtraPerm,
+			"effective":   effective,
+			"db_access":   append(role.DBAccess, user.ExtraDBAccess...),
 		})
 	}
 }

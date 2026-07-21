@@ -35,6 +35,11 @@ func AuthMiddleware(cfg AuthConfig) gin.HandlerFunc {
 			tokenStr = c.GetHeader("X-API-Key")
 		}
 
+		// 3. Fallback to token query parameter (for WebSocket connections)
+		if tokenStr == "" {
+			tokenStr = c.Query("token")
+		}
+
 		if tokenStr == "" {
 			response.Unauthorized(c, "missing authorization header")
 			c.Abort()
@@ -48,6 +53,7 @@ func AuthMiddleware(cfg AuthConfig) gin.HandlerFunc {
 			c.Set("username", claims.Username)
 			c.Set("role", claims.Role)
 			c.Set("extra_perm", claims.ExtraPerm)
+			c.Set("extra_db_access", claims.ExtraDBAccess)
 			c.Next()
 			return
 		}
@@ -90,6 +96,9 @@ func PermissionMiddleware(requiredPerm string, loadRole RoleByName) gin.HandlerF
 
 		rolePerms := getRolePermissions(roleStr, c, loadRole)
 		effective := auth.GetEffectivePerms(rolePerms, extraPermSlice)
+
+		// Store effective perms in context for downstream use (Guard, etc.)
+		c.Set("effective_perm", effective)
 
 		if !auth.HasPermission(effective, requiredPerm) {
 			response.Forbidden(c, "insufficient permissions")

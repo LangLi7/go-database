@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -15,18 +14,21 @@ import (
 
 	"go-database/internal/api/middleware"
 	"go-database/internal/api/router"
-	"go-database/internal/dashboard"
 	"go-database/internal/auth"
 	"go-database/internal/config"
-	_ "go-database/plugins/postgres"
-	_ "go-database/plugins/mysql"
-	_ "go-database/plugins/mariadb"
-	_ "go-database/plugins/sqlite"
-	_ "go-database/plugins/mongodb"
-	_ "go-database/plugins/redis"
 	"go-database/internal/connection"
+	"go-database/internal/crypto"
 	"go-database/internal/internaldb"
 	"go-database/internal/provisioner"
+	"go-database/internal/scheduler"
+	"go-database/internal/transfer"
+	_ "go-database/plugins/mariadb"
+	_ "go-database/plugins/mongodb"
+	_ "go-database/plugins/mssql"
+	_ "go-database/plugins/mysql"
+	_ "go-database/plugins/postgres"
+	_ "go-database/plugins/redis"
+	_ "go-database/plugins/sqlite"
 )
 
 var startTime = time.Now()
@@ -48,13 +50,21 @@ func main() {
 
 	// ---- Internal Database ----
 	ctx := context.Background()
-	store, err := internaldb.Open(ctx, cfg.InternalDB.AuthPath)
+	authDSN := cfg.InternalDB.AuthURL
+	if authDSN == "" {
+		authDSN = cfg.InternalDB.AuthPath
+	}
+	store, err := internaldb.Open(ctx, authDSN)
 	if err != nil {
 		slog.Error("failed to open internal database", "error", err)
 		os.Exit(1)
 	}
 	defer store.Close()
-	slog.Info("internal database ready", "path", cfg.InternalDB.AuthPath)
+	if authDSN != cfg.InternalDB.AuthPath {
+		slog.Info("internal database ready", "type", "postgresql")
+	} else {
+		slog.Info("internal database ready", "path", authDSN)
+	}
 
 	// ---- Connection Manager ----
 	connMgr := connection.NewManager()
@@ -82,44 +92,31 @@ func main() {
 	r.Use(middleware.RequestID())
 	r.Use(gin.Recovery())
 	r.Use(middleware.CORS(cfg.Server.CORSOrigin))
+	r.Use(middleware.SecurityHeaders())
 	r.Use(requestLogger())
 
-	// ---- Embedded Dashboard (SPA) ----
-	if dfs, err := dashboard.FS(); err == nil {
-		fsrv := http.FileServer(dfs)
-		r.GET("/assets/*filepath", gin.WrapH(fsrv))
-		r.GET("/favicon.svg", gin.WrapH(fsrv))
-		r.GET("/favicon.ico", gin.WrapH(fsrv))
-		r.NoRoute(func(c *gin.Context) {
-			if c.Request.Method != "GET" {
-				c.Next()
-				return
-			}
-			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
-				c.Next()
-				return
-			}
-			f, err := dfs.Open("index.html")
-			if err != nil {
-				c.Next()
-				return
-			}
-			defer f.Close()
-			stat, err := f.Stat()
-			if err != nil {
-				slog.Warn("failed to stat index.html", "error", err)
-				c.Next()
-				return
-			}
-			http.ServeContent(c.Writer, c.Request, "index.html", stat.ModTime(), f)
-		})
-		slog.Info("dashboard embedded and serving")
-	} else {
-		slog.Info("dashboard not embedded, API-only mode (use: cd web && npm run dev)")
+	// ---- API-only mode ----
+	// The frontend is developed separately and connects via the REST/WS API.
+	// No dashboard is embedded (see DECISIONS.md ADR-005).
+	slog.Info("API-only mode: frontend is a separate client, no embedded dashboard")
+
+	// ---- Transfer Engine & Scheduler ----
+	transferEngine := transfer.NewEngine(connMgr)
+	schedStore, _ := scheduler.NewFileStore("scheduled_jobs.json")
+	sched := scheduler.New(transferEngine, schedStore)
+	sched.Start(ctx)
+
+	// ---- Encryption Service ----
+	cryptoStore, err := crypto.NewKeyStore("encryption_keys.json", jwtSvc.MasterKey())
+	if err != nil {
+		slog.Error("crypto keystore failed", "error", err)
+		os.Exit(1)
 	}
+	cryptoSvc := crypto.NewService(cryptoStore)
+	slog.Info("encryption service ready", "algorithms", "aes-256-gcm, aes-256-cbc+hmac, chacha20-poly1305, rsa-oaep-4096, x25519-hybrid")
 
 	// ---- Routes ----
-	router.SetupRoutes(r, store, connMgr, jwtSvc, apikeySvc)
+	router.SetupRoutes(r, store, connMgr, jwtSvc, apikeySvc, transferEngine, sched, schedStore, cryptoSvc)
 	slog.Info("routes registered")
 
 	// ---- Server ----

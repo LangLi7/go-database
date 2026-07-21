@@ -49,17 +49,18 @@ type Row map[string]any
 
 // TransferJob represents a single data transfer operation
 type TransferJob struct {
-	ID          string
-	SourceType  string // e.g. "postgres", "sqlite"
-	TargetType  string // e.g. "mysql", "mongodb"
-	SourceConn  string // Connection ID
-	TargetConn  string // Connection ID
-	Tables      []string // Empty = all tables
-	DryRun      bool
-	BatchSize   int
-	OnConflict  string // "error" | "skip" | "overwrite"
-	CreatedAt   time.Time
-	Status      string // "pending" | "running" | "done" | "failed"
+	ID         string
+	SourceType string   // e.g. "postgres", "sqlite"
+	TargetType string   // e.g. "mysql", "mongodb"
+	SourceConn string   // Connection ID
+	TargetConn string   // Connection ID
+	Tables     []string // Empty = all tables
+	DryRun     bool
+	BatchSize  int
+	OnConflict string // "error" | "skip" | "overwrite"
+	CreatedAt  time.Time
+	Status     string // "pending" | "running" | "done" | "failed"
+	Log        []string
 }
 
 // TypeMapper converts types between DB systems
@@ -77,10 +78,23 @@ type ProgressTracker interface {
 	OnComplete(job TransferJob)
 }
 
+// ProgressEvent is sent to WebSocket subscribers
+type ProgressEvent struct {
+	Type      string    `json:"type"` // "log" | "batch" | "table_start" | "table_done" | "error" | "complete"
+	Table     string    `json:"table,omitempty"`
+	Batch     int       `json:"batch,omitempty"`
+	Rows      int64     `json:"rows,omitempty"`
+	Total     int64     `json:"total,omitempty"`
+	Message   string    `json:"message,omitempty"`
+	Error     string    `json:"error,omitempty"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 // TransferEngine orchestrates data transfer between any two DBs
 type TransferEngine interface {
 	// Start begins a transfer job (async)
-	Start(ctx context.Context, job TransferJob) error
+	// On success, job.ID is populated with the generated identifier.
+	Start(ctx context.Context, job *TransferJob) error
 
 	// Status returns current job status
 	Status(jobID string) (*TransferJob, error)
@@ -90,4 +104,10 @@ type TransferEngine interface {
 
 	// List returns all jobs
 	List() ([]TransferJob, error)
+
+	// Subscribe returns a channel that receives progress events for a job
+	Subscribe(jobID string) (<-chan ProgressEvent, error)
+
+	// Unsubscribe removes a channel from receiving progress events
+	Unsubscribe(jobID string, ch <-chan ProgressEvent)
 }

@@ -9,24 +9,63 @@ import (
 type DBType string
 
 const (
-	TypePostgres DBType = "postgres"
-	TypeMySQL    DBType = "mysql"
-	TypeMariaDB  DBType = "mariadb"
-	TypeSQLite   DBType = "sqlite"
-	TypeMongoDB  DBType = "mongodb"
-	TypeRedis    DBType = "redis"
+	TypePostgres   DBType = "postgres"
+	TypeMySQL      DBType = "mysql"
+	TypeMariaDB    DBType = "mariadb"
+	TypeSQLite     DBType = "sqlite"
+	TypeMongoDB    DBType = "mongodb"
+	TypeRedis      DBType = "redis"
+	TypeMSSQL      DBType = "mssql"
+	TypeOracle     DBType = "oracle"
+	TypeClickHouse DBType = "clickhouse"
+	TypeElastic    DBType = "elasticsearch"
+
+	// TypeAuto triggers heuristic detection (by port / DSN prefix) at connect time.
+	TypeAuto DBType = "auto"
 )
+
+// wellKnownPorts maps a default port to a database type for auto-detection.
+var wellKnownPorts = map[int]DBType{
+	5432:  TypePostgres, // PostgreSQL / CockroachDB
+	3306:  TypeMySQL,    // MySQL
+	3307:  TypeMariaDB,  // MariaDB (common alt port)
+	1433:  TypeMSSQL,    // SQL Server
+	27017: TypeMongoDB,  // MongoDB
+	6379:  TypeRedis,    // Redis
+	9200:  TypeElastic,  // Elasticsearch (HTTP)
+	8123:  TypeClickHouse,
+}
+
+// dsnPrefixes maps a DSN/connection-string prefix to a database type.
+var dsnPrefixes = []struct {
+	prefix string
+	typ    DBType
+}{
+	{"postgres://", TypePostgres},
+	{"postgresql://", TypePostgres},
+	{"mysql://", TypeMySQL},
+	{"mariadb://", TypeMariaDB},
+	{"sqlserver://", TypeMSSQL},
+	{"mssql://", TypeMSSQL},
+	{"oracle://", TypeOracle},
+	{"mongodb://", TypeMongoDB},
+	{"mongodb+srv://", TypeMongoDB},
+	{"redis://", TypeRedis},
+	{"clickhouse://", TypeClickHouse},
+	{"elasticsearch://", TypeElastic},
+	{"http://localhost:9200", TypeElastic},
+}
 
 // Config holds connection parameters for any DB type
 type Config struct {
-	Type     DBType `json:"type" yaml:"type"`
-	Host     string `json:"host,omitempty" yaml:"host,omitempty"`
-	Port     int    `json:"port,omitempty" yaml:"port,omitempty"`
-	Database string `json:"database,omitempty" yaml:"database,omitempty"`
-	User     string `json:"user,omitempty" yaml:"user,omitempty"`
-	Password string `json:"-" yaml:"-"` // never serialized to logs
-	FilePath string `json:"filepath,omitempty" yaml:"filepath,omitempty"` // SQLite file path
-	SSL      bool   `json:"ssl,omitempty" yaml:"ssl,omitempty"`
+	Type     DBType            `json:"type" yaml:"type"`
+	Host     string            `json:"host,omitempty" yaml:"host,omitempty"`
+	Port     int               `json:"port,omitempty" yaml:"port,omitempty"`
+	Database string            `json:"database,omitempty" yaml:"database,omitempty"`
+	User     string            `json:"user,omitempty" yaml:"user,omitempty"`
+	Password string            `json:"-" yaml:"-"`                                   // never serialized to logs
+	FilePath string            `json:"filepath,omitempty" yaml:"filepath,omitempty"` // SQLite file path
+	SSL      bool              `json:"ssl,omitempty" yaml:"ssl,omitempty"`
 	Params   map[string]string `json:"params,omitempty" yaml:"params,omitempty"`
 }
 
@@ -41,9 +80,9 @@ type ColumnInfo struct {
 
 // TableInfo describes a table and its columns
 type TableInfo struct {
-	Name       string       `json:"name"`
-	RowCount   int64        `json:"row_count"`
-	Columns    []ColumnInfo `json:"columns"`
+	Name     string       `json:"name"`
+	RowCount int64        `json:"row_count"`
+	Columns  []ColumnInfo `json:"columns"`
 }
 
 // Schema describes the full database schema
@@ -53,10 +92,10 @@ type Schema struct {
 
 // Result holds query results
 type Result struct {
-	Columns []string   `json:"columns"`
-	Rows    [][]any    `json:"rows"`
-	RowsAffected int64 `json:"rows_affected"`
-	Duration int64     `json:"duration_ms"`
+	Columns      []string `json:"columns"`
+	Rows         [][]any  `json:"rows"`
+	RowsAffected int64    `json:"rows_affected"`
+	Duration     int64    `json:"duration_ms"`
 }
 
 // DBPlugin is the interface every database plugin must implement
@@ -97,8 +136,8 @@ type DBPlugin interface {
 
 // registry holds all registered plugins
 var (
-	regMu     sync.RWMutex
-	registry  = make(map[DBType]func() DBPlugin)
+	regMu    sync.RWMutex
+	registry = make(map[DBType]func() DBPlugin)
 )
 
 // Register adds a plugin factory to the registry

@@ -1,8 +1,11 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,12 +19,52 @@ import (
 
 const prefix = "GODB_"
 
+// LoadEnvFile parses a simple .env file (KEY=VALUE, # comments, no quotes
+// required) and exports the variables to the process environment. Existing
+// environment variables take precedence. This is intentionally dependency-free.
+func LoadEnvFile(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // optional file
+		}
+		return err
+	}
+	lines := strings.Split(string(data), "\n")
+	for i, line := range lines {
+		l := strings.TrimSpace(line)
+		if l == "" || strings.HasPrefix(l, "#") {
+			continue
+		}
+		// Only accept KEY=VALUE
+		idx := strings.Index(l, "=")
+		if idx < 0 {
+			continue
+		}
+		key := strings.TrimSpace(l[:idx])
+		val := strings.TrimSpace(l[idx+1:])
+		// strip optional surrounding quotes
+		val = strings.Trim(val, `"'`)
+		if key == "" {
+			continue
+		}
+		// Don't override real env vars (env beats .env beats defaults)
+		if _, exists := os.LookupEnv(key); exists {
+			continue
+		}
+		if err := os.Setenv(key, val); err != nil {
+			return fmt.Errorf("config: .env line %d: %w", i+1, err)
+		}
+	}
+	return nil
+}
+
 // Server holds the HTTP server configuration
 type Server struct {
-	Host        string `json:"host" yaml:"host"`
-	Port        int    `json:"port" yaml:"port"`
-	BaseURL     string `json:"base_url" yaml:"base_url"`
-	CORSOrigin  string `json:"cors_origin" yaml:"cors_origin"`
+	Host       string `json:"host" yaml:"host"`
+	Port       int    `json:"port" yaml:"port"`
+	BaseURL    string `json:"base_url" yaml:"base_url"`
+	CORSOrigin string `json:"cors_origin" yaml:"cors_origin"`
 }
 
 // Auth holds authentication configuration
@@ -30,11 +73,12 @@ type Auth struct {
 	JWTSecret     string `json:"jwt_secret" yaml:"jwt_secret"`
 }
 
-// InternalDB holds paths for internal SQLite databases
+// InternalDB holds configuration for the internal (auth) database.
+// Defaults to a local SQLite file. Set AuthURL to a postgres:// DSN to use
+// PostgreSQL instead (see internal/internaldb/store.go for the driver rewrite).
 type InternalDB struct {
-	AuthPath    string `json:"auth_path" yaml:"auth_path"`
-	JobsPath    string `json:"jobs_path" yaml:"jobs_path"`
-	MetricsPath string `json:"metrics_path" yaml:"metrics_path"`
+	AuthPath string `json:"auth_path" yaml:"auth_path"`
+	AuthURL  string `json:"auth_url" yaml:"auth_url"` // PostgreSQL DSN (postgres://...), overrides AuthPath
 }
 
 // Config is the root configuration
@@ -49,6 +93,11 @@ type Config struct {
 // Load reads configuration from file(s) + environment variables
 func Load(paths ...string) (*Config, error) {
 	k := koanf.New(".")
+
+	// 0. Load .env file first (populates os env, no-op if absent)
+	if err := LoadEnvFile(".env"); err != nil {
+		return nil, fmt.Errorf("config: .env: %w", err)
+	}
 
 	// 1. Try loading from default paths if none specified
 	if len(paths) == 0 {
@@ -105,12 +154,6 @@ func Load(paths ...string) (*Config, error) {
 	if cfg.InternalDB.AuthPath == "" {
 		cfg.InternalDB.AuthPath = filepath.Join(cfg.DataDir, "auth.db")
 	}
-	if cfg.InternalDB.JobsPath == "" {
-		cfg.InternalDB.JobsPath = filepath.Join(cfg.DataDir, "jobs.db")
-	}
-	if cfg.InternalDB.MetricsPath == "" {
-		cfg.InternalDB.MetricsPath = filepath.Join(cfg.DataDir, "metrics.db")
-	}
 
 	return &cfg, nil
 }
@@ -125,11 +168,24 @@ func (c *Config) setDefaults() {
 	if c.Server.BaseURL == "" {
 		c.Server.BaseURL = fmt.Sprintf("http://%s:%d", c.Server.Host, c.Server.Port)
 	}
+	if c.Server.CORSOrigin == "" {
+		c.Server.CORSOrigin = "*" // Allow all origins in dev; restrict in production
+	}
 	if c.Auth.TokenDuration == 0 {
 		c.Auth.TokenDuration = 60 // 1 hour
 	}
 	if c.LogLevel == "" {
 		c.LogLevel = "info"
+	}
+	// Harden JWT secret: if default or empty, generate a random one at startup
+	if c.Auth.JWTSecret == "" || c.Auth.JWTSecret == "change-me-in-production" {
+		key := make([]byte, 32)
+		if _, err := rand.Read(key); err == nil {
+			c.Auth.JWTSecret = hex.EncodeToString(key)
+			slog.Warn("config: JWT secret is default or empty, generated random secret",
+				"jwt_secret", c.Auth.JWTSecret[:8]+"...",
+				"hint", "Set GODB_AUTH_JWT_SECRET env var for persistence across restarts")
+		}
 	}
 }
 

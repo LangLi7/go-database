@@ -24,22 +24,22 @@ type Sample struct {
 
 // Table describes a table in a sample
 type Table struct {
-	Name    string   `json:"name"`
-	Comment string   `json:"comment"`
-	Columns []Column `json:"columns"`
+	Name    string           `json:"name"`
+	Comment string           `json:"comment"`
+	Columns []Column         `json:"columns"`
 	Rows    []map[string]any `json:"rows"`
 }
 
 // Column describes a table column
 type Column struct {
-	Name        string `json:"name"`
-	Type        string `json:"type"`
-	PK          bool   `json:"pk"`
-	AutoIncrement bool `json:"autoincrement"`
-	NotNull     bool   `json:"notnull"`
-	Unique      bool   `json:"unique"`
-	Default     any    `json:"default"`
-	Ref         *Ref   `json:"ref"`
+	Name          string `json:"name"`
+	Type          string `json:"type"`
+	PK            bool   `json:"pk"`
+	AutoIncrement bool   `json:"autoincrement"`
+	NotNull       bool   `json:"notnull"`
+	Unique        bool   `json:"unique"`
+	Default       any    `json:"default"`
+	Ref           *Ref   `json:"ref"`
 }
 
 // Ref describes a foreign key reference

@@ -1,39 +1,38 @@
-# go-database Makefile
-
-.PHONY: all build build-ui build-server run test clean
+.PHONY: all build build-all clean fmt lint vet test tidy
 
 all: build
 
-# Build UI (React)
-build-ui:
-	cd web && npm install && npm run build
+# ── Build Go server only (no frontend embedded) ──
+build:
+	CGO_ENABLED=0 go build -o bin/go-database ./cmd/server/
 
-# Copy UI to embed directory
-copy-ui:
-	cp -r web/dist internal/dashboard/dist
+# ── Cross-compile Go backend ──
+build-all:
+	CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -o bin/go-database-linux-amd64   ./cmd/server/
+	CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build -o bin/go-database-linux-arm64   ./cmd/server/
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o bin/go-database-windows-amd64 ./cmd/server/
+	CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 go build -o bin/go-database-darwin-amd64  ./cmd/server/
 
-# Build Go server
-build-server: copy-ui
-	go build -buildvcs=false -o bin/go-database ./cmd/server/
+# ── Format all Go files ──
+fmt:
+	gofmt -w .
 
-# Quick build (Go only, no UI)
-build-server-quick:
-	go build -buildvcs=false -o bin/go-database ./cmd/server/
+# ── Vet (static analysis) ──
+vet:
+	go vet ./...
 
-# Build both
-build: build-ui build-server
+# ── Lint (requires golangci-lint) ──
+lint:
+	golangci-lint run ./...
 
-# Run server (requires config/config.yaml)
-run:
-	./bin/go-database
-
-# Test Go code
+# ── Test ──
 test:
-	go test -buildvcs=false -v -count=1 ./internal/...
+	go test -count=1 ./...
 
-# Clean build artifacts
+# ── Tidy go.mod ──
+tidy:
+	go mod tidy
+
+# ── Clean build artifacts ──
 clean:
 	rm -rf bin/
-	rm -rf web/dist/
-	rm -rf internal/dashboard/dist/
-	rm -rf database/internal/*.db

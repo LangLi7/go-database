@@ -25,11 +25,11 @@ var defaultDBs = []struct {
 
 // Provisioner auto-starts databases for development/testing
 type Provisioner struct {
-	mu         sync.Mutex
-	mgr        *connection.Manager
-	docker     *dockerProvisioner
-	embeddedPG *embeddedPostgres
-	embeddedMY *embeddedMySQL
+	mu          sync.Mutex
+	mgr         *connection.Manager
+	docker      *dockerProvisioner
+	embeddedPG  *embeddedPostgres
+	embeddedMY  *embeddedMySQL
 	provisioned []string
 }
 
@@ -80,6 +80,11 @@ func (p *Provisioner) provision(ctx context.Context, typ plugin.DBType, name, so
 	conn, err := p.mgr.Add(ctx, name, typ, source, *cfg, []string{"auto-provisioned"})
 	if err != nil {
 		return fmt.Errorf("register %s: %w", typ, err)
+	}
+
+	// Seed sample table if database is empty
+	if err := p.seedSampleTable(ctx, conn.ID, typ); err != nil {
+		slog.Warn("provisioner: seed failed for "+string(typ), "error", err)
 	}
 
 	p.provisioned = append(p.provisioned, conn.ID)
@@ -144,4 +149,61 @@ func (p *Provisioner) ProvisionedIDs() []string {
 	r := make([]string, len(p.provisioned))
 	copy(r, p.provisioned)
 	return r
+}
+
+func (p *Provisioner) seedSampleTable(ctx context.Context, connID string, typ plugin.DBType) error {
+	if typ == plugin.TypeRedis || typ == plugin.TypeMongoDB {
+		return nil
+	}
+
+	schema, err := p.mgr.Schema(ctx, connID)
+	if err != nil {
+		return err
+	}
+	if len(schema.Tables) > 0 {
+		return nil
+	}
+
+	var stmts []string
+	switch typ {
+	case plugin.TypePostgres:
+		stmts = []string{
+			`CREATE TABLE IF NOT EXISTS sample_data (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100) NOT NULL,
+				email VARCHAR(200),
+				status VARCHAR(20) DEFAULT 'active',
+				score INTEGER DEFAULT 0,
+				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			)`,
+			`INSERT INTO sample_data (name, email, status, score) VALUES
+				('Alice Johnson', 'alice@example.com', 'active', 95),
+				('Bob Smith', 'bob@example.com', 'active', 82),
+				('Charlie Brown', 'charlie@example.com', 'inactive', 47)`,
+		}
+	default:
+		stmts = []string{
+			`CREATE TABLE IF NOT EXISTS sample_data (
+				id INT AUTO_INCREMENT PRIMARY KEY,
+				name VARCHAR(100) NOT NULL,
+				email VARCHAR(200),
+				status VARCHAR(20) DEFAULT 'active',
+				score INT DEFAULT 0,
+				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			)`,
+			`INSERT INTO sample_data (name, email, status, score) VALUES
+				('Alice Johnson', 'alice@example.com', 'active', 95),
+				('Bob Smith', 'bob@example.com', 'active', 82),
+				('Charlie Brown', 'charlie@example.com', 'inactive', 47)`,
+		}
+	}
+
+	for _, stmt := range stmts {
+		if _, err := p.mgr.Execute(ctx, connID, stmt); err != nil {
+			slog.Warn("provisioner: seed query failed", "conn", connID, "error", err)
+			return err
+		}
+	}
+	slog.Info("provisioner: seeded sample table for "+string(typ), "conn", connID)
+	return nil
 }

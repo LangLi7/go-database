@@ -83,10 +83,10 @@ func (p *redisPlugin) Query(ctx context.Context, q string) (*plugin.Result, erro
 	rows := flattenResult(val)
 
 	return &plugin.Result{
-		Columns: []string{"result"},
-		Rows:    rows,
+		Columns:      []string{"result"},
+		Rows:         rows,
 		RowsAffected: int64(len(rows)),
-		Duration: time.Since(start).Milliseconds(),
+		Duration:     time.Since(start).Milliseconds(),
 	}, nil
 }
 

@@ -80,6 +80,17 @@ func (m *Manager) Add(ctx context.Context, name string, typ plugin.DBType, sourc
 	return &mc.Connection, nil
 }
 
+// GetConnection returns connection info by ID (public wrapper)
+func (m *Manager) GetConnection(id string) (*Connection, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	mc, ok := m.conns[id]
+	if !ok {
+		return nil, fmt.Errorf("connection: %q not found", id)
+	}
+	return &mc.Connection, nil
+}
+
 // Get returns a single connection by ID
 func (m *Manager) Get(id string) (*managedConn, error) {
 	m.mu.RLock()
@@ -283,9 +294,19 @@ func (m *Manager) checkAll(ctx context.Context) {
 		pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		_, err := m.Ping(pingCtx, id)
 		cancel()
-		if err != nil {
-			slog.Warn("health check failed", "id", id, "error", err)
+
+		m.mu.Lock()
+		mc, ok := m.conns[id]
+		if ok {
+			if err != nil {
+				mc.State = StateError
+				mc.Connection.Latency = 0
+				slog.Warn("health check failed", "id", id, "error", err)
+			} else {
+				mc.State = StateConnected
+			}
 		}
+		m.mu.Unlock()
 	}
 }
 

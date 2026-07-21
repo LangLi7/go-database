@@ -14,11 +14,12 @@ import (
 )
 
 type TokenClaims struct {
-	UserID    string   `json:"uid"`
-	Username  string   `json:"un"`
-	Role      string   `json:"role"`
-	ExtraPerm []string `json:"ep,omitempty"`
-	ExpiresAt int64    `json:"exp"`
+	UserID        string   `json:"uid"`
+	Username      string   `json:"un"`
+	Role          string   `json:"role"`
+	ExtraPerm     []string `json:"ep,omitempty"`
+	ExtraDBAccess []string `json:"eda,omitempty"`
+	ExpiresAt     int64    `json:"exp"`
 }
 
 type TokenService struct {
@@ -43,13 +44,18 @@ func NewTokenService(secret string, durationMinutes int) (*TokenService, error) 
 	}, nil
 }
 
-func (s *TokenService) GenerateToken(userID, username, role string, extraPerm []string) (string, error) {
+func (s *TokenService) MasterKey() []byte {
+	return s.key[:]
+}
+
+func (s *TokenService) GenerateToken(userID, username, role string, extraPerm, extraDBAccess []string) (string, error) {
 	claims := TokenClaims{
-		UserID:    userID,
-		Username:  username,
-		Role:      role,
-		ExtraPerm: extraPerm,
-		ExpiresAt: time.Now().Add(s.duration).Unix(),
+		UserID:        userID,
+		Username:      username,
+		Role:          role,
+		ExtraPerm:     extraPerm,
+		ExtraDBAccess: extraDBAccess,
+		ExpiresAt:     time.Now().Add(s.duration).Unix(),
 	}
 	plain, err := json.Marshal(claims)
 	if err != nil {

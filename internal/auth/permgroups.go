@@ -1,10 +1,10 @@
 package auth
 
 type PermissionGroup struct {
-	Name        string               `json:"name"`
-	DisplayName string               `json:"display_name"`
-	Icon        string               `json:"icon"`
-	Children    []PermissionEntry    `json:"children"`
+	Name        string            `json:"name"`
+	DisplayName string            `json:"display_name"`
+	Icon        string            `json:"icon"`
+	Children    []PermissionEntry `json:"children"`
 }
 
 type PermissionEntry struct {
@@ -21,15 +21,11 @@ func PermissionGroups() []PermissionGroup {
 				{PermConnectionsList, "List Connections", "View list of database connections"},
 				{PermConnectionsCreate, "Create Connections", "Add new database connections"},
 				{PermConnectionsDelete, "Delete Connections", "Remove database connections"},
-				{PermConnectionsQuery, "Query Data", "Run SELECT queries"},
-				{PermConnectionsExec, "Execute", "Run INSERT/UPDATE/DELETE queries"},
-			},
-		},
-		{
-			Name: "database", DisplayName: "Database", Icon: "🗄️",
-			Children: []PermissionEntry{
-				{"database:*.read", "Read All Databases", "Read access to all databases"},
-				{"database:*.write", "Write All Databases", "Write access to all databases"},
+				{PermConnectionsQuery, "Query Data", "Run SELECT queries (all connections)"},
+				{PermConnectionsExec, "Execute", "Run INSERT/UPDATE/DELETE (all connections)"},
+				{"query:connection.*", "Query (per-connection)", "Query specific connections via granular permissions"},
+				{"execute:connection.*", "Execute (per-connection)", "Execute on specific connections"},
+				{"list:connection.*", "List (per-connection)", "View specific connections"},
 			},
 		},
 		{

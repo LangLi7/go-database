@@ -95,8 +95,8 @@ func SSEStatsHandler(connMgr *connection.Manager) gin.HandlerFunc {
 					}
 				}
 				payload, _ := json.Marshal(map[string]any{
-					"timestamp":      time.Now().UTC(),
-					"total_connections": len(conns),
+					"timestamp":          time.Now().UTC(),
+					"total_connections":  len(conns),
 					"active_connections": connected,
 				})
 				fmt.Fprintf(c.Writer, "event: stats\ndata: %s\n\n", payload)

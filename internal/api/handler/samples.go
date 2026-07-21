@@ -54,9 +54,9 @@ func LoadSample(mgr *connection.Manager) gin.HandlerFunc {
 		}
 
 		response.Created(c, gin.H{
-			"sample":   sampleName,
-			"name":     s.Name,
-			"tables":   len(s.Tables),
+			"sample": sampleName,
+			"name":   s.Name,
+			"tables": len(s.Tables),
 		})
 	}
 }

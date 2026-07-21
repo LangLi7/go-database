@@ -1,22 +1,47 @@
-# Binaries
+# Binaries & build artifacts
 bin/
+go-database
+go-database.exe
+server.exe
 
-# Internal build artifacts
-internal/dashboard/dist/
+# Frontend (removed — frontend is a separate client, see DECISIONS.md ADR-005)
+web/
+internal/dashboard/
+
+# Docs build output
+docs/site/node_modules/
+docs/site/dist/
+docs/site/.vite/
+docs/site/tsconfig.tsbuildinfo
 
 # Dependencies
-web/node_modules/
+node_modules/
 
-# Environment
+# Environment & local overrides
 .env
+config/config.local.yaml
+config/config.local.json
 
-# OS
+# Runtime data (regenerated on first start / by docker init scripts)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+database/internal/*.db
+database/storage/
+encryption_keys.json
+scheduled_jobs.json
+
+# Logs
+*.log
+stderr.log
+stdout.log
+
+# Misc generated
+tree.txt
+
+# OS / IDE
 .DS_Store
 Thumbs.db
-
-# IDE
 .vscode/
 .idea/
-
-# Database files (internal)
-database/internal/*.db

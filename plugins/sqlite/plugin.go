@@ -90,10 +90,10 @@ func (p *sqlitePlugin) Query(ctx context.Context, q string) (*plugin.Result, err
 		result = append(result, vals)
 	}
 	return &plugin.Result{
-		Columns: cols,
-		Rows:    result,
+		Columns:      cols,
+		Rows:         result,
 		RowsAffected: int64(len(result)),
-		Duration: time.Since(start).Milliseconds(),
+		Duration:     time.Since(start).Milliseconds(),
 	}, nil
 }
 

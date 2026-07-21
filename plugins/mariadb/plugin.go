@@ -89,10 +89,10 @@ func (p *mariaPlugin) Query(ctx context.Context, q string) (*plugin.Result, erro
 		result = append(result, vals)
 	}
 	return &plugin.Result{
-		Columns: cols,
-		Rows:    result,
+		Columns:      cols,
+		Rows:         result,
 		RowsAffected: int64(len(result)),
-		Duration: time.Since(start).Milliseconds(),
+		Duration:     time.Since(start).Milliseconds(),
 	}, nil
 }
 

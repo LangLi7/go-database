@@ -1,0 +1,17 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8080,
+    "base_url": "http://localhost:8080",
+    "cors_origin": "*"
+  },
+  "auth": {
+    "token_duration": 60,
+    "jwt_secret": "change-me-in-production"
+  },
+  "internal_db": {
+    "auth_path": "database/internal/auth.db"
+  },
+  "log_level": "info",
+  "data_dir": "database/internal"
+}

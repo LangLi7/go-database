@@ -58,9 +58,9 @@ func (h *wsHub) broadcast(connID string, msg []byte) {
 
 // wsQueryMsg is the JSON format for WebSocket query messages
 type wsQueryMsg struct {
-	Type    string `json:"type"`    // "query" | "execute" | "ping"
-	Query   string `json:"query,omitempty"`
-	ReqID   string `json:"req_id,omitempty"`
+	Type  string `json:"type"` // "query" | "execute" | "ping"
+	Query string `json:"query,omitempty"`
+	ReqID string `json:"req_id,omitempty"`
 }
 
 // wsRespMsg is sent back to the client
@@ -162,7 +162,7 @@ func WSQueryHandler(connMgr *connection.Manager) gin.HandlerFunc {
 // NotifyWebSocket sends a notification to all clients watching a connection
 func NotifyWebSocket(connID string, event string, data any) {
 	msg, _ := json.Marshal(map[string]any{
-		"type": "notification",
+		"type":  "notification",
 		"event": event,
 		"data":  data,
 		"time":  time.Now().UTC(),

@@ -42,7 +42,13 @@ func Login(store *internaldb.Store, jwt *auth.JWTService) gin.HandlerFunc {
 			return
 		}
 
-		token, err := jwt.GenerateToken(user.ID, user.Username, user.Role, user.ExtraPerm)
+		// First-time setup check: if admin uses default password, force setup
+		if user.Username == "admin" && auth.IsDefaultPassword(user.PasswordHash) {
+			response.Error(c, http.StatusForbidden, "SETUP_REQUIRED", "default admin password must be changed")
+			return
+		}
+		token, err := jwt.GenerateToken(user.ID, user.Username, user.Role, user.ExtraPerm, user.ExtraDBAccess)
+
 		if err != nil {
 			response.InternalError(c, "failed to generate token")
 			return
@@ -79,7 +85,7 @@ func RefreshToken(jwt *auth.JWTService) gin.HandlerFunc {
 			return
 		}
 
-		newToken, err := jwt.GenerateToken(claims.UserID, claims.Username, claims.Role, claims.ExtraPerm)
+		newToken, err := jwt.GenerateToken(claims.UserID, claims.Username, claims.Role, claims.ExtraPerm, claims.ExtraDBAccess)
 		if err != nil {
 			response.InternalError(c, "failed to refresh token")
 			return

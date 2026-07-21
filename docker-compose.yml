@@ -1,8 +1,6 @@
 # go-database — Full Stack Deployment
 # Includes: API, Sample Databases, Internal DB
 
-version: "3.8"
-
 services:
   api:
     build: .
@@ -10,17 +8,12 @@ services:
     ports:
       - "8080:8080"
     environment:
-      GODB_AUTH_JWT_SECRET: "${GODB_JWT_SECRET:-change-me-in-production}"
+      # Generate a strong secret: openssl rand -hex 32
+      GODB_AUTH_JWT_SECRET: "${GODB_JWT_SECRET:-}"
       GODB_LOG_LEVEL: "info"
     volumes:
       - internal-db:/app/database/internal
     restart: unless-stopped
-    depends_on:
-      - postgres-sample
-      - mysql-sample
-      - mariadb-sample
-      - mongodb-sample
-      - redis-sample
 
   # Sample Databases
   postgres-sample:

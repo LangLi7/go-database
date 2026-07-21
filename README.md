@@ -8,11 +8,11 @@ Anwendungen                         go-database                      Datenbanken
 ─────────────                       ───────────                      ──────────
 Website ─────┐                                         ┌─── PostgreSQL
 Discord Bot ─┤                                         ├─── MySQL
-Mobile App ──┼──── API (REST/WS/SSE/gRPC) ───► go-database ┼─── MariaDB
+Mobile App ──┼──── API (REST/WS/SSE) ────────► go-database ┼─── MariaDB
 AI/Code ─────┤                            │            ├─── SQLite
 Minecraft ───┘                            │            ├─── MongoDB
-                                     Dashboard         ├─── Redis
-                                     (Admin-UI)         └─── ... (erweiterbar)
+                                      Dashboard         ├─── Redis
+                                      (Admin-UI)         └─── ... (erweiterbar)
 ```
 
 ---
@@ -20,15 +20,84 @@ Minecraft ───┘                            │            ├─── Mo
 ## Features
 
 - **6 DB-Engine-Unterstützung** — PostgreSQL, MySQL, MariaDB, SQLite, MongoDB, Redis
+- **MSSQL (SQL Server)** — Enterprise/Banken-Support ✅ (seit 2026-07-21)
+- **DB-Migration** — Daten inkl. Schema zwischen verschiedenen DB-Typen konvertieren
+- **Auto-Provisioning** — Docker + embedded DB-Server starten bei Bedarf
 - **Einheitliche REST API** — Alle Datenbanken über eine Schnittstelle
-- **Admin-Dashboard** — Webbasierte Verwaltung (embedded SPA)
+- **First-Setup Wizard** — Admin-Passwort beim ersten Start erzwingen
+- **Admin-Dashboard** — Webbasierte Verwaltung als **separater Client** (bindet nur über die API an)
+- **Inline DB-Explorer** — Tabellen browsen, Zellen editieren, Zeilen hinzufügen/löschen
 - **Query Editor** — SQL direkt im Browser ausführen
-- **Explorer** — Tabellen browsen, CRUD, Paginierung, Filter, Sortierung
-- **User & Rollen** — Permission-System mit 19 Berechtigungstypen
+- **WebSocket & SSE** — Streaming-Queries + Echtzeit-Updates
+- **User & Rollen** — RBAC-Permission-System mit 19 Berechtigungstypen
 - **API-Keys** — Generate (crypto/rand + SHA256), Revoke
-- **Adaptives Design** — Themes via API konfigurierbar (Netflix-Stil)
-- **Data Transfer** — Daten zwischen verschiedenen DB-Typen migrieren
-- **Embedded** — Single Binary (Go + React via embed.FS)
+- **Saisonale Themes** — Dark/Light + Christmas/Halloween/Easter
+- **Samples & Import** — Vorgefertigte JSON-Beispieldaten laden
+- **Internal DB** — Wählbar: SQLite (default) oder PostgreSQL
+- **API-only** — Single Binary (reines Go-Backend, kein eingebettetes Frontend)
+- **OpenAPI-kompatibel** — Alle Fehler als `{success, data, error, meta}`
+- **Mehrere Protokolle (geplant)** — REST ✅, WebSocket ✅, SSE ✅, sowie GraphQL/gRPC/OData/JSON-RPC/SOAP/MQTT/Webhooks/FIX als Design-Spec — siehe `docs/PROTOCOLS.md`
+
+---
+
+## Dokumentation
+
+- **`docs/README.md`** — Docs-Index (alle Dokumente verlinkt)
+- **`docs/STRUCTURE.md`** — *Wo ist was, wo kommt was her* — Paket-Karte + Request-Lifecycle
+- **`docs/PROJEKT.md`** — Vision, Architektur, Permission-Modell
+- **`docs/DECISIONS.md`** — ADRs (warum SQLite-Default, kein Frontend im Repo, Rust-Status, Concurrency)
+- **`docs/RISKS.md`** — Offene Risiken für parallele externe Nutzer
+- **`docs/api.md`** — REST/WS/SSE-Referenz mit Beispielen
+- **`docs/PROTOCOLS.md`** — Alle Protokolle (implementiert + geplant)
+
+---
+
+## Schnellstart (Docker) 🐳
+
+**1. Klonen & starten (nur API):**
+```bash
+git clone https://github.com/Langli7/go-database
+cd go-database
+docker compose up -d            # startet die API auf :8080
+```
+
+**2. Mit Sample-Datenbanken (Postgres, MySQL, MariaDB, Mongo, Redis):**
+```bash
+docker compose --profile samples up -d
+```
+
+**3. Erstinstallation abschließen:**
+```bash
+# Setup-Status prüfen
+curl http://localhost:8080/api/v1/setup/status
+
+# Admin-Passwort + E-Mail setzen (NUR beim ersten Start)
+curl -X POST http://localhost:8080/api/v1/setup/initialize \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"MeinSicheresPasswort123"}'
+
+# Einloggen → JWT erhalten
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"MeinSicheresPasswort123"}'
+```
+
+→ API bereit auf `http://localhost:8080/api/v1`. Dashboard/Admin-UI kommt später
+als **separater Client** (siehe `docs/DECISIONS.md` ADR-005).
+
+---
+
+## Schnellstart (Lokal, ohne Docker)
+
+```bash
+# API bauen & starten
+make build
+./bin/go-database
+# oder: go run ./cmd/server/
+
+# Mit PostgreSQL als internem Auth-Store (optional):
+GODB_INTERNAL_DB_AUTH_URL=postgres://user:***@localhost:5432/godb_auth ./bin/go-database
+```
 
 ---
 
@@ -45,31 +114,27 @@ docker-compose up -d
 ```
 
 → Dashboard: http://localhost:8080  
-→ Login: `admin` / `admin`
 
-### Lokal entwickeln
+**Lokal entwickeln**
 
-**Backend:**
 ```bash
-# Go API starten
+# Go API starten (API-only, kein Frontend im Repo)
 go run ./cmd/server/
 
-# Oder mit Konfiguration
-GODB_AUTH_JWT_SECRET=mysecret go run ./cmd/server/
+# Oder mit PostgreSQL als Auth-Backend
+GODB_INTERNAL_DB_AUTH_URL=postgres://user:***@localhost:5432/godb_auth go run ./cmd/server/
 ```
 
-**Frontend (separat):**
-```bash
-cd web
-npm install
-npm run dev          # → localhost:5173 (proxied an :8080)
-```
+**Build:**
 
-**Alles bauen:**
 ```bash
-make build           # React + Go → bin/go-database
+make build              # Nur Go → bin/go-database
 ./bin/go-database
 ```
+
+> **Hinweis:** Das Frontend (Dashboard/Admin-UI) wird als **separater Client**
+> entwickelt und nutzt ausschließlich die REST/WS/SSE-API — wie jede andere
+> externe App auch. Siehe `docs/DECISIONS.md` ADR-005.
 
 ---
 
@@ -86,15 +151,26 @@ http://localhost:8080/api/v1
 ### Authentifizierung
 
 ```bash
-# Login
+# Setup-Status prüfen (beim ersten Start)
+curl http://localhost:8080/api/v1/setup/status
+
+# Setup initialisieren (nur beim ersten Start)
+curl -X POST http://localhost:8080/api/v1/setup/initialize \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"meinPasswort123"}'
+
+# Login (nach Setup mit dem neuen Passwort)
 curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin"}'
+  -d '{"username":"admin","password":"meinPasswort123"}'
 
 # Token in allen weiteren Requests
 curl http://localhost:8080/api/v1/connections \
   -H "Authorization: Bearer <token>"
 ```
+
+**Wichtig:** Beim ersten Start ist `admin:admin` voreingestellt.  
+Der Login gibt dann `403 SETUP_REQUIRED` zurück — das Dashboard leitet automatisch zum Setup-Wizard weiter.
 
 ### Response-Format
 
@@ -108,12 +184,13 @@ curl http://localhost:8080/api/v1/connections \
 
 ---
 
-## Datenbanken: 3 Formen
+## Datenbanken: 4 Quellen
 
 ```
 1. Extern  → Verbindung zu entfernten DB-Servern (dev/staging/prod)
-2. Intern  → .db SQLite-Files (auth.db, jobs.db, metrics.db)
-3. Docker  → Sample-Container zum Testen (postgres, mysql, mongo, redis)
+2. Intern  → SQLite- oder PostgreSQL-DB für Auth/Config/Logs
+3. Auto-Provisioning → Docker-Container oder embedded Server (kein Setup nötig)
+4. Docker  → Sample-Container zum Testen (postgres, mysql, mongo, redis)
 ```
 
 Alle Konfigurationen in `database/`:
@@ -122,7 +199,7 @@ Alle Konfigurationen in `database/`:
 database/
 ├── external/          # YAML-Configs für externe Verbindungen
 │   └── sample/        # Beispiel-Configs pro DB-Typ
-├── internal/          # Interne SQLite-DBs (werden automatisch erstellt)
+├── internal/          # Interne DBs (SQLite auth.db oder PostgreSQL)
 ├── samples/           # Init-Scripts mit Beispieldaten
 │   ├── postgres/      # E-Commerce-Schema
 │   ├── mysql/         # Blog-Plattform
@@ -141,21 +218,22 @@ database/
 cmd/server/main.go          # Entrypoint
 internal/
 ├── api/                    # REST API
-│   ├── handler/            # Request-Handler
-│   ├── middleware/         # Auth, CORS
-│   ├── response/           # Einheitliches Response-Format
+│   ├── handler/            # Request-Handler (auth, connections, explorer, samples, transfer, setup)
+│   ├── middleware/         # Auth, CORS, Rate-Limit, Request-ID
+│   ├── response/           # Einheitliches {success, data, error, meta}
 │   └── router/             # Routen-Definitionen
-├── auth/                   # JWT, API-Keys, bcrypt, Permissions
-├── config/                 # YAML/JSON/Env-Konfiguration
-├── connection/             # Connection Manager + Pooling
-├── dashboard/              # Embedded React SPA (embed.FS)
-├── internaldb/             # SQLite-DB für Auth/Config/Logs
-├── job/                    # Async Job System (geplant)
-├── model/                  # Datenmodelle
-├── monitor/                # Traffic-Monitoring (geplant)
-├── plugin/                 # DBPlugin Interface + Registry
-├── query/                  # Query Engine
-└── transfer/               # Daten-Transfer Engine
+├── auth/                   # JWT, API-Keys, bcrypt, Permissions, Roles
+├── config/                 # YAML/JSON/Env-Konfiguration (koanf)
+├── connection/             # Connection Manager + Health-Checker
+├── internaldb/              # SQLite- oder PostgreSQL-Backend für Auth/Config/Logs
+├── plugin/                 # DBPlugin Interface + Registry (6 DB-Typen)
+├── provisioner/            # Docker + embedded DB-Auto-Start (Postgres, MySQL, MariaDB)
+├── samples/                # JSON-Beispieldaten + Import-Engine (Company HR, E-Commerce, Library, University)
+├── transfer/               # Daten-Transfer Engine (Source → Typemap → Target)
+├── guard/                  # Query-Guard (SQL-Injection-Prävention)
+├── executor/               # Safe-Query-Executor mit Checks
+├── suggest/                # SQL-Auto-Vervollständigung
+└── transfer/               # DB-Migration zwischen allen Typen
 plugins/
 ├── postgres/               # PostgreSQL (pgx/v5)
 ├── mysql/                  # MySQL (go-sql-driver/mysql)
@@ -163,7 +241,6 @@ plugins/
 ├── sqlite/                 # SQLite (modernc.org/sqlite)
 ├── mongodb/                # MongoDB (mongo-driver)
 └── redis/                  # Redis (go-redis/v9)
-web/                        # React SPA (Vite + TypeScript)
 config/config.yaml          # Default-Konfiguration
 ```
 
@@ -175,13 +252,15 @@ config/config.yaml          # Default-Konfiguration
 |-----------|------------|
 | Sprache | Go 1.26 |
 | HTTP-Framework | Gin |
-| Dashboard | React 19 + TypeScript + Vite |
+| Dashboard | **separater Client** (eigene Tech, bindet nur über die API) |
 | Auth | JWT (golang-jwt) + bcrypt |
 | API-Keys | crypto/rand + SHA256 |
-| Internal DB | SQLite (modernc.org/sqlite, CGO-frei) |
+| Internal DB | SQLite (modernc.org/sqlite, CGO-frei) **oder** PostgreSQL (pgx/v5) |
 | DB-Plugins | pgx/v5, go-sql-driver/mysql, mongo-driver, go-redis/v9 |
-| Embedding | embed.FS |
+| Provisioner | Docker + embedded-postgres + go-mysql-server |
+| Embedding | — (kein Frontend embedded; API-only) |
 | Logging | slog (strukturiertes JSON) |
+| Streaming | WebSocket (gorilla/websocket) + Server-Sent Events |
 
 ---
 
@@ -190,7 +269,6 @@ config/config.yaml          # Default-Konfiguration
 ### Voraussetzungen
 
 - Go 1.26+
-- Node.js 20+
 - Docker (optional, für Sample-DBs)
 
 ### Tests
@@ -206,8 +284,7 @@ go test -v -count=1 ./internal/...
 ### Build
 
 ```bash
-make build              # Komplett (React + Go)
-make build-server-quick # Nur Go (ohne UI)
+make build              # Nur Go (bin/go-database)
 ```
 
 ---

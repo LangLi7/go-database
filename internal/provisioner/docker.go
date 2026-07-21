@@ -76,9 +76,14 @@ func (d *dockerProvisioner) Start(ctx context.Context, typ plugin.DBType) (*plug
 		}
 	}
 
-	args := []string{"run", "-d", "--name", containerName, "--rm"}
+	dataDir := dataDirForType(typ)
+	volumeName := containerName + "-data"
+	args := []string{"run", "-d", "--name", containerName}
 	for _, e := range def.Env {
 		args = append(args, "-e", e)
+	}
+	if dataDir != "" {
+		args = append(args, "-v", fmt.Sprintf("%s:%s", volumeName, dataDir))
 	}
 	args = append(args, "-p", fmt.Sprintf("%d:%d", def.Port, def.Port), def.Image)
 
@@ -145,6 +150,21 @@ func (d *dockerProvisioner) config(typ plugin.DBType) *plugin.Config {
 		Database: defaultDBName(typ),
 		User:     defaultUser(typ),
 		Password: "",
+	}
+}
+
+func dataDirForType(typ plugin.DBType) string {
+	switch typ {
+	case plugin.TypePostgres:
+		return "/var/lib/postgresql/data"
+	case plugin.TypeMySQL, plugin.TypeMariaDB:
+		return "/var/lib/mysql"
+	case plugin.TypeMongoDB:
+		return "/data/db"
+	case plugin.TypeRedis:
+		return "/data"
+	default:
+		return ""
 	}
 }
 

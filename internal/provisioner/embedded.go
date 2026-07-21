@@ -45,7 +45,7 @@ func (e *embeddedPostgres) Start(ctx context.Context) (*plugin.Config, error) {
 			Database("postgres").
 			Username("postgres").
 			Password("postgres").
-			StartTimeout(120*time.Second),
+			StartTimeout(120 * time.Second),
 	)
 
 	if err := pg.Start(); err != nil {

@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -15,10 +17,41 @@ import (
 	"go-database/internal/api/router"
 	"go-database/internal/auth"
 	"go-database/internal/connection"
+	"go-database/internal/crypto"
 	"go-database/internal/internaldb"
+	"go-database/internal/scheduler"
+	"go-database/internal/transfer"
 
 	_ "go-database/plugins/sqlite"
 )
+
+type mockSchedulerStore struct{}
+
+func (m *mockSchedulerStore) List() ([]scheduler.ScheduledJob, error) { return nil, nil }
+func (m *mockSchedulerStore) Get(id string) (*scheduler.ScheduledJob, error) {
+	return nil, fmt.Errorf("not found")
+}
+func (m *mockSchedulerStore) Save(job *scheduler.ScheduledJob) error { return nil }
+func (m *mockSchedulerStore) Delete(id string) error                 { return nil }
+
+type mockTransferEngine struct{}
+
+func (m *mockTransferEngine) Start(ctx context.Context, job *transfer.TransferJob) error {
+	if job.ID == "" {
+		job.ID = fmt.Sprintf("mock-%d", time.Now().UnixNano())
+	}
+	job.Status = "done"
+	return nil
+}
+func (m *mockTransferEngine) Status(jobID string) (*transfer.TransferJob, error) {
+	return &transfer.TransferJob{ID: jobID, Status: "done"}, nil
+}
+func (m *mockTransferEngine) Cancel(jobID string) error             { return nil }
+func (m *mockTransferEngine) List() ([]transfer.TransferJob, error) { return nil, nil }
+func (m *mockTransferEngine) Subscribe(jobID string) (<-chan transfer.ProgressEvent, error) {
+	return make(chan transfer.ProgressEvent), nil
+}
+func (m *mockTransferEngine) Unsubscribe(jobID string, ch <-chan transfer.ProgressEvent) {}
 
 var (
 	testStore   *internaldb.Store
@@ -27,6 +60,7 @@ var (
 	testAPIKey  *auth.APIKeyService
 	testEngine  *gin.Engine
 	testToken   string
+	testAdminPw = "TestPass123!"
 )
 
 func setupTestEnv(t *testing.T) {
@@ -42,6 +76,11 @@ func setupTestEnv(t *testing.T) {
 		t.Fatalf("failed to open test db: %v", err)
 	}
 
+	// Complete first-time setup so admin can login
+	if err := testStore.CompleteSetup(context.Background(), "test@example.com", testAdminPw); err != nil {
+		t.Fatalf("failed to complete setup: %v", err)
+	}
+
 	testMgr = connection.NewManager()
 	var jwtErr error
 	testJWT, jwtErr = auth.NewJWTService("test-secret", 60)
@@ -50,9 +89,20 @@ func setupTestEnv(t *testing.T) {
 	}
 	testAPIKey = auth.NewAPIKeyService(testStore)
 
+	testSchedStore := &mockSchedulerStore{}
+	testTransEngine := &mockTransferEngine{}
+	testSched := scheduler.New(testTransEngine, testSchedStore)
+
+	cryptoPath := filepath.Join(t.TempDir(), "crypto_keys.json")
+	cryptoStore, cryptoErr := crypto.NewKeyStore(cryptoPath, []byte("01234567890123456789012345678901"))
+	if cryptoErr != nil {
+		t.Fatalf("failed to create crypto store: %v", cryptoErr)
+	}
+	testCrypto := crypto.NewService(cryptoStore)
+
 	testEngine = gin.New()
 	testEngine.Use(gin.Recovery())
-	router.SetupRoutes(testEngine, testStore, testMgr, testJWT, testAPIKey)
+	router.SetupRoutes(testEngine, testStore, testMgr, testJWT, testAPIKey, testTransEngine, testSched, testSchedStore, testCrypto)
 
 	// Login as admin to get token
 	token, err := loginAsAdmin()
@@ -63,7 +113,7 @@ func setupTestEnv(t *testing.T) {
 }
 
 func loginAsAdmin() (string, error) {
-	body := `{"username":"admin","password":"admin"}`
+	body := fmt.Sprintf(`{"username":"admin","password":"%s"}`, testAdminPw)
 	req := httptest.NewRequest("POST", "/api/v1/auth/login", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -113,7 +163,7 @@ func TestHealth(t *testing.T) {
 
 func TestLogin(t *testing.T) {
 	setupTestEnv(t)
-	body := `{"username":"admin","password":"admin"}`
+	body := fmt.Sprintf(`{"username":"admin","password":"%s"}`, testAdminPw)
 	req := httptest.NewRequest("POST", "/api/v1/auth/login", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -131,7 +181,7 @@ func TestLogin(t *testing.T) {
 
 func TestLoginInvalid(t *testing.T) {
 	setupTestEnv(t)
-	body := `{"username":"admin","password":"wrong"}`
+	body := `{"username":"admin","password":"WrongPassword"}`
 	req := httptest.NewRequest("POST", "/api/v1/auth/login", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -259,7 +309,7 @@ func TestVerifyToken(t *testing.T) {
 
 func TestChangePassword(t *testing.T) {
 	setupTestEnv(t)
-	body := `{"old_password":"admin","new_password":"newadmin123"}`
+	body := fmt.Sprintf(`{"old_password":"%s","new_password":"newadmin123"}`, testAdminPw)
 	req := authRequest("POST", "/api/v1/auth/change-password", body)
 	w := httptest.NewRecorder()
 	testEngine.ServeHTTP(w, req)

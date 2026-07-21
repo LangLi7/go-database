@@ -37,17 +37,18 @@ type User struct {
 	ID            string   `json:"id"`
 	Username      string   `json:"username"`
 	PasswordHash  string   `json:"-"`
-	Role          string   `json:"role"`            // role ID
-	ExtraPerm     []string `json:"extra_perm,omitempty"`  // user-specific overrides
+	Role          string   `json:"role"`
+	ExtraPerm     []string `json:"extra_perm,omitempty"`
 	ExtraDBAccess []string `json:"extra_db_access,omitempty"`
+	Email         string   `json:"email,omitempty"`
 }
 
 // DefaultRoles returns the three built-in roles
 func DefaultRoles() []Role {
 	return []Role{
 		{
-			ID:   "admin",
-			Name: "Administrator",
+			ID:          "admin",
+			Name:        "Administrator",
 			Permissions: []string{PermAdmin},
 		},
 		{

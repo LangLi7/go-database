@@ -95,10 +95,10 @@ func (p *pgPlugin) Query(ctx context.Context, q string) (*plugin.Result, error) 
 	}
 
 	return &plugin.Result{
-		Columns: columns,
-		Rows:    result,
+		Columns:      columns,
+		Rows:         result,
 		RowsAffected: int64(len(result)),
-		Duration: time.Since(start).Milliseconds(),
+		Duration:     time.Since(start).Milliseconds(),
 	}, nil
 }
 

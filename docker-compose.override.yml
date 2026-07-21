@@ -1,0 +1,9 @@
+# Local development override
+# Run: docker compose up
+services:
+  api:
+    environment:
+      GODB_AUTH_JWT_SECRET: "dev-secret-do-not-use-in-production-1234567890123456"
+      GODB_LOG_LEVEL: "debug"
+    ports:
+      - "8080:8080"

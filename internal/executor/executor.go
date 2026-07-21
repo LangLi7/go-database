@@ -12,21 +12,21 @@ import (
 )
 
 type ExecutionRequest struct {
-	ConnectionID string `json:"connection_id"`
-	SQL          string `json:"sql"`
-	ConfirmHigh  bool   `json:"confirm_high"`
-	UserID       string `json:"user_id"`
-	Role         string `json:"role"`
+	ConnectionID string   `json:"connection_id"`
+	SQL          string   `json:"sql"`
+	ConfirmHigh  bool     `json:"confirm_high"`
+	UserID       string   `json:"user_id"`
+	Role         string   `json:"role"`
 	Permissions  []string `json:"permissions"`
 }
 
 type ExecutionResult struct {
-	Success     bool              `json:"success"`
-	Result      *plugin.Result    `json:"result,omitempty"`
-	RiskLevel   suggest.RiskLevel `json:"risk_level"`
-	RiskInfo    string            `json:"risk_info,omitempty"`
-	NeedsConfirm bool             `json:"needs_confirm"`
-	Error       string            `json:"error,omitempty"`
+	Success      bool              `json:"success"`
+	Result       *plugin.Result    `json:"result,omitempty"`
+	RiskLevel    suggest.RiskLevel `json:"risk_level"`
+	RiskInfo     string            `json:"risk_info,omitempty"`
+	NeedsConfirm bool              `json:"needs_confirm"`
+	Error        string            `json:"error,omitempty"`
 }
 
 type Executor struct {

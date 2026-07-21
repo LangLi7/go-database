@@ -1,13 +1,20 @@
 package handler
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"go-database/internal/api/response"
+	"go-database/internal/auth"
 	"go-database/internal/connection"
+	"go-database/internal/guard"
 	"go-database/internal/plugin"
+	"go-database/internal/suggest"
 )
 
 func ListConnections(mgr *connection.Manager) gin.HandlerFunc {
@@ -138,13 +145,105 @@ func CreateConnection(mgr *connection.Manager) gin.HandlerFunc {
 			Params:   req.Params,
 		}
 
-		conn, err := mgr.Add(c.Request.Context(), req.Name, req.Type, req.Source, cfg, req.Tags)
+		// Auto-detect the database type if requested
+		dbType := req.Type
+		if dbType == plugin.TypeAuto {
+			detected, ok := plugin.DetectType(cfg)
+			if !ok {
+				response.BadRequest(c, "could not auto-detect database type; specify 'type' explicitly")
+				return
+			}
+			dbType = detected
+			cfg.Type = detected
+		}
+
+		conn, err := mgr.Add(c.Request.Context(), req.Name, dbType, req.Source, cfg, req.Tags)
 		if err != nil {
 			response.Error(c, http.StatusBadRequest, "CONNECTION_FAILED", err.Error())
 			return
 		}
 
 		response.Created(c, conn)
+	}
+}
+
+type testConnectionRequest struct {
+	Name   string            `json:"name"`
+	Type   string            `json:"type" binding:"required"`
+	Source string            `json:"source"`
+	Host   string            `json:"host"`
+	Port   int               `json:"port"`
+	DBName string            `json:"db_name"`
+	User   string            `json:"user"`
+	Pass   string            `json:"password"`
+	File   string            `json:"filepath"`
+	SSL    bool              `json:"ssl"`
+	Tags   []string          `json:"tags"`
+	Params map[string]string `json:"params"`
+}
+
+func TestConnection(mgr *connection.Manager) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req testConnectionRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			response.BadRequest(c, "type required")
+			return
+		}
+
+		cfg := plugin.Config{
+			Type:     plugin.DBType(req.Type),
+			Host:     req.Host,
+			Port:     req.Port,
+			Database: req.DBName,
+			User:     req.User,
+			Password: req.Pass,
+			FilePath: req.File,
+			SSL:      req.SSL,
+			Params:   req.Params,
+		}
+
+		// Auto-detect the database type if requested
+		if plugin.DBType(req.Type) == plugin.TypeAuto {
+			detected, ok := plugin.DetectType(cfg)
+			if !ok {
+				response.Error(c, http.StatusBadRequest, "DETECT_FAILED",
+					"could not auto-detect database type; specify 'type' explicitly")
+				return
+			}
+			cfg.Type = detected
+			req.Type = string(detected)
+		}
+
+		name := req.Name
+		if name == "" {
+			b := make([]byte, 8)
+			rand.Read(b)
+			name = "test-" + hex.EncodeToString(b)
+		}
+
+		p, ok := plugin.New(plugin.DBType(req.Type))
+		if !ok {
+			response.Error(c, http.StatusBadRequest, "UNSUPPORTED_TYPE", "unsupported database type")
+			return
+		}
+
+		connCtx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+		defer cancel()
+
+		start := time.Now()
+		if err := p.Connect(connCtx, cfg); err != nil {
+			p.Close()
+			response.Error(c, http.StatusBadGateway, "CONNECTION_FAILED", err.Error())
+			return
+		}
+		latency := time.Since(start)
+		p.Close()
+
+		response.Success(c, gin.H{
+			"success":    true,
+			"latency_ms": latency.Milliseconds(),
+			"message":    "connection successful",
+		})
 	}
 }
 
@@ -198,6 +297,8 @@ type queryRequest struct {
 	Query string `json:"query" binding:"required"`
 }
 
+var sqlGuard = guard.New()
+
 func QueryConnection(mgr *connection.Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req queryRequest
@@ -205,6 +306,22 @@ func QueryConnection(mgr *connection.Manager) gin.HandlerFunc {
 			response.BadRequest(c, "query required")
 			return
 		}
+
+		// Guard: ensure SQL is a SELECT
+		perm, _ := c.Get("effective_perm")
+		if perm == nil {
+			perm, _ = c.Get("extra_perm")
+		}
+		permSlice, _ := perm.([]string)
+		if cmd, ok := sqlGuard.CheckCommand(req.Query, permSlice); !ok {
+			if cmd == suggest.CmdSelect {
+				response.Forbidden(c, "insufficient permissions for SELECT")
+			} else {
+				response.Forbidden(c, "only SELECT queries allowed on query endpoint")
+			}
+			return
+		}
+
 		result, err := mgr.Query(c.Request.Context(), c.Param("id"), req.Query)
 		if err != nil {
 			response.Error(c, http.StatusBadGateway, "QUERY_FAILED", err.Error())
@@ -221,6 +338,26 @@ func ExecuteConnection(mgr *connection.Manager) gin.HandlerFunc {
 			response.BadRequest(c, "query required")
 			return
 		}
+
+		// Guard: check SQL command is allowed
+		perm, _ := c.Get("effective_perm")
+		if perm == nil {
+			perm, _ = c.Get("extra_perm")
+		}
+		permSlice, _ := perm.([]string)
+		if cmd, ok := sqlGuard.CheckCommand(req.Query, permSlice); !ok {
+			if cmd == suggest.CmdUnknown {
+				// Non-SQL command — allow if user has execute permission
+				if !auth.HasResourcePermission(permSlice, "execute", "*") {
+					response.Forbidden(c, "insufficient permissions")
+					return
+				}
+			} else {
+				response.Forbidden(c, "insufficient permissions for this SQL operation")
+				return
+			}
+		}
+
 		result, err := mgr.Execute(c.Request.Context(), c.Param("id"), req.Query)
 		if err != nil {
 			response.Error(c, http.StatusBadGateway, "EXEC_FAILED", err.Error())

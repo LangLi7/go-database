@@ -21,11 +21,11 @@ const (
 )
 
 type Suggestion struct {
-	Text        string          `json:"text"`
-	Description string          `json:"description"`
-	Type        SuggestionType  `json:"type"`
-	Confidence  float64         `json:"confidence"`
-	RiskLevel   RiskLevel       `json:"risk_level"`
+	Text        string         `json:"text"`
+	Description string         `json:"description"`
+	Type        SuggestionType `json:"type"`
+	Confidence  float64        `json:"confidence"`
+	RiskLevel   RiskLevel      `json:"risk_level"`
 }
 
 type Context struct {
@@ -40,13 +40,13 @@ type Context struct {
 type CommandType string
 
 const (
-	CmdSelect  CommandType = "SELECT"
-	CmdInsert  CommandType = "INSERT"
-	CmdUpdate  CommandType = "UPDATE"
-	CmdDelete  CommandType = "DELETE"
-	CmdCreate  CommandType = "CREATE"
-	CmdDrop    CommandType = "DROP"
-	CmdAlter   CommandType = "ALTER"
+	CmdSelect   CommandType = "SELECT"
+	CmdInsert   CommandType = "INSERT"
+	CmdUpdate   CommandType = "UPDATE"
+	CmdDelete   CommandType = "DELETE"
+	CmdCreate   CommandType = "CREATE"
+	CmdDrop     CommandType = "DROP"
+	CmdAlter    CommandType = "ALTER"
 	CmdTruncate CommandType = "TRUNCATE"
-	CmdUnknown CommandType = "UNKNOWN"
+	CmdUnknown  CommandType = "UNKNOWN"
 )

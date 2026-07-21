@@ -18,17 +18,17 @@ const (
 
 // Connection describes a registered database connection
 type Connection struct {
-	ID        string            `json:"id"`
-	Name      string            `json:"name"`
-	Type      plugin.DBType     `json:"type"`
-	Source    string            `json:"source"` // "external" | "internal" | "docker" | "file"
-	Config    plugin.Config     `json:"config"`
-	State     State             `json:"state"`
-	Latency   time.Duration     `json:"latency_ms"`
-	Error     string            `json:"error,omitempty"`
-	Tags      []string          `json:"tags,omitempty"`
-	CreatedAt time.Time         `json:"created_at"`
-	UpdatedAt time.Time         `json:"updated_at"`
+	ID        string        `json:"id"`
+	Name      string        `json:"name"`
+	Type      plugin.DBType `json:"type"`
+	Source    string        `json:"source"` // "external" | "internal" | "docker" | "file"
+	Config    plugin.Config `json:"config"`
+	State     State         `json:"state"`
+	Latency   time.Duration `json:"latency_ms"`
+	Error     string        `json:"error,omitempty"`
+	Tags      []string      `json:"tags,omitempty"`
+	CreatedAt time.Time     `json:"created_at"`
+	UpdatedAt time.Time     `json:"updated_at"`
 }
 
 // Summary is a lightweight view of a connection

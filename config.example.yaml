@@ -1,0 +1,35 @@
+# go-database Konfiguration
+# Kopiere diese Datei nach config/config.yaml und passe sie an.
+
+server:
+  # Host/IP on which the HTTP server listens
+  host: "127.0.0.1"
+  # HTTP port
+  port: 8080
+  # Public base URL (for behind-proxy setups)
+  base_url: ""
+  # Allowed CORS origin (set to "*" to allow all origins in dev)
+  cors_origin: "http://localhost:5173"
+
+auth:
+  # JWT token duration (default: 60m)
+  token_duration: "60m"
+  # 256-bit hex-encoded secret for AES-256-GCM JWT encryption
+  # Generate with: openssl rand -hex 32
+  jwt_secret: ""
+
+internal_db:
+  # SQLite: path to auth database file (default: database/internal/auth.db)
+  auth_path: "database/internal/auth.db"
+  # PostgreSQL: connection string (overrides auth_path)
+  # Example: "postgres://user:password@localhost:5432/godatabase?sslmode=disable"
+  auth_url: ""
+  # Path for persistent job state
+  jobs_path: "database/internal/jobs.db"
+  # Path for metrics storage
+  metrics_path: "database/internal/metrics.db"
+
+log_level: "info"
+
+# Datenverzeichnis (default: database/)
+data_dir: "database"

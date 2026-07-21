@@ -1,0 +1,63 @@
+# golangci-lint config — go-database
+# Run: golangci-lint run   (or: make lint)
+# Modern, opinionated but pragmatic defaults for a Go 1.26 project.
+
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - errcheck        # unchecked errors
+    - govet           # go vet (built-in, but explicit)
+    - ineffassign     # ineffective assignments
+    - staticcheck     # SA-style checks
+    - unused          # unused code
+    - gofmt           # formatting
+    - goimports       # import ordering/grouping
+    - misspell        # typos
+    - revive          # stylistic (golint successor)
+    - gocritic        # opinionated suggestions
+    - bodyclose       # HTTP/socket body close
+    - unconvert       # redundant conversions
+    - durationcheck   # time.Duration misuse
+    - errname         # error variable naming
+    - forcetypeassert # flag type asserts without ok
+    - nilerr          # return nil error after if err != nil
+    - prealloc        # slice preallocation hints
+    - wsl             # whitespace/structure lint
+    - gosec           # security (G1xx..G4xx) — informational
+  disable:
+    - depguard        # too strict for now
+
+issues:
+  exclude-rules:
+    # Tests may use context.Background() / t.Parallel freely
+    - path: _test\.go
+      linters:
+        - contextcheck
+        - gosec
+    # Auto-generated files
+    - path: \.gen\.go
+      linters:
+        - all
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+linters-settings:
+  goimports:
+    local-prefixes: go-database
+  revive:
+    rules:
+      - name: exported
+        disabled: false
+      - name: comment-spacings
+        disabled: false
+  gosec:
+    excludes:
+      - G104 # Errcheck-like: gosec's own unchecked-errors (errcheck covers it)
+  wsl:
+    allow-cuddle-declarations: true
+    allow-cuddle-with-calls: true

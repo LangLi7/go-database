@@ -1,0 +1,2023 @@
+openapi: "3.0.3"
+info:
+  title: go-database API
+  description: |
+    Universelle Datenbank-Middleware & Management-Plattform.
+    Einheitliche REST-API für 6 Datenbank-Engines (PostgreSQL, MySQL, MariaDB, SQLite, MongoDB, Redis)
+    mit RBAC, Audit-Logging, WebSocket-Streaming, Cross-DB-Transfer und adaptivem Dashboard.
+  version: "0.1.0"
+  contact:
+    name: GitHub
+    url: "https://github.com/LangLi7/go-database"
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: http://127.0.0.1:8080
+    description: Localhost
+
+paths:
+  # ─── Health ───────────────────────────────────────────────────────────────
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  # ─── Setup ────────────────────────────────────────────────────────────────
+  /api/v1/setup/status:
+    get:
+      tags: [Setup]
+      summary: Check if first-time setup is complete
+      operationId: setupStatus
+      responses:
+        "200":
+          description: Setup status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetupStatusResponse"
+
+  /api/v1/setup/initialize:
+    post:
+      tags: [Setup]
+      summary: Complete first-time setup (change default admin password)
+      operationId: initializeSetup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitializeSetupRequest"
+      responses:
+        "204":
+          description: Setup completed successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  # ─── Auth ─────────────────────────────────────────────────────────────────
+  /api/v1/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Login with username and password
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Setup required (default admin password still active)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh JWT token
+      operationId: refreshToken
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/TokenResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/verify:
+    get:
+      tags: [Authentication]
+      summary: Verify current token and return user info
+      operationId: verifyToken
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserInfoResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/change-password:
+    post:
+      tags: [Authentication]
+      summary: Change password for current user
+      operationId: changePassword
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "204":
+          description: Password changed successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ─── Connections ──────────────────────────────────────────────────────────
+  /api/v1/connections:
+    get:
+      tags: [Connections]
+      summary: List all database connections
+      operationId: listConnections
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: List of connections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConnectionSummary"
+
+    post:
+      tags: [Connections]
+      summary: Create a new database connection
+      operationId: createConnection
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateConnectionRequest"
+      responses:
+        "201":
+          description: Connection created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Connection"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/connections/{id}:
+    get:
+      tags: [Connections]
+      summary: Get connection details
+      operationId: getConnection
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+      responses:
+        "200":
+          description: Connection details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Connection"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [Connections]
+      summary: Delete a connection
+      operationId: deleteConnection
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+      responses:
+        "204":
+          description: Connection deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/connections/{id}/ping:
+    get:
+      tags: [Connections]
+      summary: Ping a database connection
+      operationId: pingConnection
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+      responses:
+        "200":
+          description: Ping result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  latency_ms:
+                    type: integer
+                    description: Ping latency in milliseconds
+                  status:
+                    type: string
+                    example: ok
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/v1/connections/{id}/tables:
+    get:
+      tags: [Connections]
+      summary: List tables in a connection
+      operationId: listTables
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+      responses:
+        "200":
+          description: List of table names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/v1/connections/{id}/schema:
+    get:
+      tags: [Connections]
+      summary: Get full database schema
+      operationId: getSchema
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+      responses:
+        "200":
+          description: Database schema
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Schema"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/v1/connections/{id}/query:
+    post:
+      tags: [Connections]
+      summary: Execute a read query (SELECT)
+      operationId: queryConnection
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueryRequest"
+      responses:
+        "200":
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueryResult"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/v1/connections/{id}/execute:
+    post:
+      tags: [Connections]
+      summary: Execute a write query (INSERT/UPDATE/DELETE/DDL)
+      operationId: executeConnection
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueryRequest"
+      responses:
+        "200":
+          description: Execution result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueryResult"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/v1/connections/{id}/databases:
+    get:
+      tags: [Connections]
+      summary: List databases on a server
+      operationId: listDatabases
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+      responses:
+        "200":
+          description: List of database names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+    post:
+      tags: [Connections]
+      summary: Create a new database on the server
+      operationId: createDatabase
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  description: Database name
+      responses:
+        "201":
+          description: Database created
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/v1/connections/{id}/databases/{name}:
+    delete:
+      tags: [Connections]
+      summary: Drop a database
+      operationId: dropDatabase
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Database name
+      responses:
+        "204":
+          description: Database dropped
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/v1/connections/{id}/tables:
+    post:
+      tags: [Connections]
+      summary: Create a new table
+      operationId: createTable
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTableRequest"
+      responses:
+        "201":
+          description: Table created
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/v1/connections/{id}/tables/{name}:
+    delete:
+      tags: [Connections]
+      summary: Drop a table
+      operationId: dropTable
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Table name
+      responses:
+        "204":
+          description: Table dropped
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  # ─── Standalone Database ──────────────────────────────────────────────────
+  /api/v1/databases/standalone:
+    post:
+      tags: [Connections]
+      summary: Create a standalone database connection with auto-seeding
+      operationId: createStandaloneDatabase
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, name]
+              properties:
+                type:
+                  type: string
+                  enum: [postgres, mysql, mariadb, sqlite, mongodb, redis]
+                  description: Database type
+                name:
+                  type: string
+                  description: Database name
+      responses:
+        "201":
+          description: Standalone database created
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  # ─── Explorer ─────────────────────────────────────────────────────────────
+  /api/v1/connections/{id}/browse/{table}:
+    get:
+      tags: [Explorer]
+      summary: Browse table data with pagination
+      operationId: browseTable
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Table name
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+          description: Results per page
+        - name: sort
+          in: query
+          schema:
+            type: string
+          description: Column to sort by
+        - name: dir
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+          description: Sort direction
+        - name: filter
+          in: query
+          schema:
+            type: string
+          description: SQL WHERE clause (sanitized)
+      responses:
+        "200":
+          description: Paginated table data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowseResult"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/v1/connections/{id}/row/{table}:
+    post:
+      tags: [Explorer]
+      summary: Insert a new row
+      operationId: insertRow
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Table name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Column-value pairs for the new row
+              example: {"name": "Alice", "email": "alice@example.com"}
+      responses:
+        "201":
+          description: Row inserted
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/v1/connections/{id}/row/{table}/{pk}/{val}:
+    put:
+      tags: [Explorer]
+      summary: Update a row by primary key
+      operationId: updateRow
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: pk
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Primary key column name
+        - name: val
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Primary key value
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Column-value pairs to update
+      responses:
+        "200":
+          description: Row updated
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+    delete:
+      tags: [Explorer]
+      summary: Delete a row by primary key
+      operationId: deleteRow
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: pk
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Primary key column name
+        - name: val
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Primary key value
+      responses:
+        "200":
+          description: Row deleted
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  # ─── Samples & Import ─────────────────────────────────────────────────────
+  /api/v1/samples:
+    get:
+      tags: [Samples]
+      summary: List available sample database templates
+      operationId: listSamples
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Available samples
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SampleInfo"
+
+  /api/v1/connections/{id}/samples/{sample}:
+    post:
+      tags: [Samples]
+      summary: Load a sample database into a connection
+      operationId: loadSample
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+        - name: sample
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Sample name (hr, ecommerce, library, university)
+      responses:
+        "201":
+          description: Sample loaded
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/v1/connections/{id}/import:
+    post:
+      tags: [Samples]
+      summary: Import custom data tables from JSON
+      operationId: importData
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Sample JSON with tables and data
+      responses:
+        "201":
+          description: Data imported
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  # ─── Admin ────────────────────────────────────────────────────────────────
+  /api/v1/admin/stats:
+    get:
+      tags: [Admin]
+      summary: Get dashboard statistics
+      operationId: getStats
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  connections_total:
+                    type: integer
+                  connections_online:
+                    type: integer
+                  connections_offline:
+                    type: integer
+
+  /api/v1/admin/design:
+    get:
+      tags: [Admin]
+      summary: Get active design configuration
+      operationId: getDesign
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Active design configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DesignConfig"
+    post:
+      tags: [Admin]
+      summary: Save a design configuration
+      operationId: saveDesign
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DesignRequest"
+      responses:
+        "201":
+          description: Design saved
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/admin/activity:
+    get:
+      tags: [Admin]
+      summary: Get audit log activity
+      operationId: getActivity
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLogEntry"
+
+  /api/v1/admin/permission-groups:
+    get:
+      tags: [Admin]
+      summary: Get all permission groups with descriptions
+      operationId: getPermissionGroups
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Permission groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PermissionGroup"
+
+  # ─── Users ────────────────────────────────────────────────────────────────
+  /api/v1/admin/users:
+    get:
+      tags: [Users]
+      summary: List all users
+      operationId: listUsers
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: List of users (password hashes masked)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SafeUser"
+    post:
+      tags: [Users]
+      summary: Create a new user
+      operationId: createUser
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: User created
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/admin/users/{id}:
+    put:
+      tags: [Users]
+      summary: Update an existing user
+      operationId: updateUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "204":
+          description: User updated
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Users]
+      summary: Delete a user
+      operationId: deleteUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "204":
+          description: User deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/admin/users/{id}/permissions:
+    get:
+      tags: [Users]
+      summary: Get effective permissions for a user
+      operationId: getUserPermissions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: User permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPermissionsResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Users]
+      summary: Set extra permissions for a user
+      operationId: setUserPermissions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                extra_perm:
+                  type: array
+                  items:
+                    type: string
+                extra_db_access:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "204":
+          description: Permissions updated
+
+  /api/v1/admin/users/{id}/db-access:
+    get:
+      tags: [Users]
+      summary: Get database access for a user
+      operationId: getUserDBAccess
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: DB access info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  db_access:
+                    type: array
+                    items:
+                      type: string
+                  extra_db_access:
+                    type: array
+                    items:
+                      type: string
+    put:
+      tags: [Users]
+      summary: Set extra database access for a user
+      operationId: setUserDBAccess
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                extra_db_access:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: DB access updated
+
+  # ─── Roles ────────────────────────────────────────────────────────────────
+  /api/v1/admin/roles:
+    get:
+      tags: [Roles]
+      summary: List all roles
+      operationId: listRoles
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: List of roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Role"
+    post:
+      tags: [Roles]
+      summary: Create a new role
+      operationId: createRole
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleRequest"
+      responses:
+        "201":
+          description: Role created
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/admin/roles/{id}:
+    put:
+      tags: [Roles]
+      summary: Update a role
+      operationId: updateRole
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Role ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleRequest"
+      responses:
+        "204":
+          description: Role updated
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Roles]
+      summary: Delete a role
+      operationId: deleteRole
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Role deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/admin/roles/{id}/permissions:
+    put:
+      tags: [Roles]
+      summary: Set permissions and DB access for a role
+      operationId: setRolePermissions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                permissions:
+                  type: array
+                  items:
+                    type: string
+                db_access:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "204":
+          description: Role permissions updated
+
+  # ─── Traffic ──────────────────────────────────────────────────────────────
+  /api/v1/traffic/stats:
+    get:
+      tags: [Traffic]
+      summary: Get traffic statistics
+      operationId: getTrafficStats
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Traffic stats
+  /api/v1/traffic/requests:
+    get:
+      tags: [Traffic]
+      summary: Get recent requests
+      operationId: getRequests
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Recent requests
+
+  # ─── API Keys ─────────────────────────────────────────────────────────────
+  /api/v1/apikeys:
+    get:
+      tags: [API Keys]
+      summary: List all API keys
+      operationId: listApiKeys
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: List of API keys (hashes masked)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SafeAPIKey"
+    post:
+      tags: [API Keys]
+      summary: Generate a new API key
+      operationId: createApiKey
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAPIKeyRequest"
+      responses:
+        "201":
+          description: API key created (raw key returned once)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateAPIKeyResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/apikeys/{prefix}:
+    delete:
+      tags: [API Keys]
+      summary: Revoke an API key
+      operationId: deleteApiKey
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: prefix
+          in: path
+          required: true
+          schema:
+            type: string
+          description: API key prefix
+      responses:
+        "204":
+          description: API key revoked
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ─── Transfer ─────────────────────────────────────────────────────────────
+  /api/v1/transfer:
+    post:
+      tags: [Transfer]
+      summary: Start a cross-database data transfer
+      operationId: startTransfer
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartTransferRequest"
+      responses:
+        "201":
+          description: Transfer started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferStatus"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/transfer/{id}:
+    get:
+      tags: [Transfer]
+      summary: Get transfer job status
+      operationId: getTransferStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TransferId"
+      responses:
+        "200":
+          description: Transfer status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferStatus"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Transfer]
+      summary: Cancel a transfer job
+      operationId: cancelTransfer
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TransferId"
+      responses:
+        "204":
+          description: Transfer cancelled
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/transfer/{id}/log:
+    get:
+      tags: [Transfer]
+      summary: Get transfer job log
+      operationId: getTransferLog
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TransferId"
+      responses:
+        "200":
+          description: Transfer log
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  status:
+                    type: string
+                  log:
+                    type: array
+                    items:
+                      type: string
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ─── Suggest ──────────────────────────────────────────────────────────────
+  /api/v1/suggest:
+    post:
+      tags: [Suggest]
+      summary: Get SQL autocomplete suggestions
+      operationId: getSuggestions
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuggestRequest"
+      responses:
+        "200":
+          description: Suggestions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  # ─── Execute Safe ─────────────────────────────────────────────────────────
+  /api/v1/execute/safe:
+    post:
+      tags: [Execute]
+      summary: Execute a SQL query with safety checks (RBAC + risk assessment)
+      operationId: executeSafe
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExecuteSafeRequest"
+      responses:
+        "200":
+          description: Query executed successfully
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Confirmation required for high-risk query
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  # ─── WebSocket ────────────────────────────────────────────────────────────
+  /api/v1/ws/query/{id}:
+    get:
+      tags: [WebSocket]
+      summary: WebSocket endpoint for streaming queries
+      operationId: wsQuery
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConnectionId"
+      responses:
+        "101":
+          description: WebSocket upgrade successful
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  # ─── SSE ──────────────────────────────────────────────────────────────────
+  /api/v1/sse/activity:
+    get:
+      tags: [SSE]
+      summary: Server-Sent Events stream for activity
+      operationId: sseActivity
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /api/v1/sse/stats:
+    get:
+      tags: [SSE]
+      summary: Server-Sent Events stream for live stats
+      operationId: sseStats
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+components:
+  parameters:
+    ConnectionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Connection ID
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: User ID
+    TransferId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Transfer job ID
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /api/v1/auth/login or /api/v1/auth/refresh
+
+  schemas:
+    # ── Envelope ────────────────────────────────────────────────────────────
+    APIResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          description: Response payload
+        error:
+          $ref: "#/components/schemas/APIError"
+        meta:
+          $ref: "#/components/schemas/APIMeta"
+    APIError:
+      type: object
+      properties:
+        code:
+          type: string
+          example: BAD_REQUEST
+        message:
+          type: string
+        details: {}
+    APIMeta:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          $ref: "#/components/schemas/APIError"
+        meta:
+          $ref: "#/components/schemas/APIMeta"
+
+    # ── Health ──────────────────────────────────────────────────────────────
+    HealthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            status:
+              type: string
+              example: ok
+            version:
+              type: string
+              example: "0.1.0"
+        meta:
+          $ref: "#/components/schemas/APIMeta"
+
+    # ── Setup ───────────────────────────────────────────────────────────────
+    SetupStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            setup_complete:
+              type: boolean
+    InitializeSetupRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          description: Admin email address
+        password:
+          type: string
+          minLength: 8
+          description: New admin password (min 8 characters)
+
+    # ── Auth ────────────────────────────────────────────────────────────────
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    TokenResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            token:
+              type: string
+            user_id:
+              type: string
+            username:
+              type: string
+            role:
+              type: string
+        meta:
+          $ref: "#/components/schemas/APIMeta"
+    RefreshRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT token (or use Authorization header)
+    UserInfoResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            user_id:
+              type: string
+            username:
+              type: string
+            role:
+              type: string
+            extra_perm:
+              type: array
+              items:
+                type: string
+    ChangePasswordRequest:
+      type: object
+      required: [old_password, new_password]
+      properties:
+        old_password:
+          type: string
+        new_password:
+          type: string
+
+    # ── Connections ─────────────────────────────────────────────────────────
+    ConnectionSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [postgres, mysql, mariadb, sqlite, mongodb, redis]
+        source:
+          type: string
+        state:
+          type: string
+          enum: [connected, disconnected, error, connecting]
+        latency_ms:
+          type: integer
+        tags:
+          type: array
+          items:
+            type: string
+    Connection:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        source:
+          type: string
+        config:
+          $ref: "#/components/schemas/DBConfig"
+        state:
+          type: string
+        latency_ms:
+          type: integer
+        error:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    DBConfig:
+      type: object
+      properties:
+        host:
+          type: string
+        port:
+          type: integer
+        database:
+          type: string
+        user:
+          type: string
+        filepath:
+          type: string
+        ssl:
+          type: boolean
+        params:
+          type: object
+          additionalProperties:
+            type: string
+    CreateConnectionRequest:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+          description: Connection name
+        type:
+          type: string
+          enum: [postgres, mysql, mariadb, sqlite, mongodb, redis]
+        source:
+          type: string
+          description: Connection source (default: "external")
+        host:
+          type: string
+        port:
+          type: integer
+        database:
+          type: string
+        user:
+          type: string
+        password:
+          type: string
+        filepath:
+          type: string
+          description: SQLite file path
+        ssl:
+          type: boolean
+        params:
+          type: object
+          additionalProperties:
+            type: string
+        tags:
+          type: array
+          items:
+            type: string
+
+    # ── Explorer ────────────────────────────────────────────────────────────
+    QueryRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+    QueryResult:
+      type: object
+      properties:
+        columns:
+          type: array
+          items:
+            type: string
+        rows:
+          type: array
+          items:
+            type: array
+            items: {}
+        rows_affected:
+          type: integer
+        duration_ms:
+          type: integer
+    BrowseResult:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: array
+            items: {}
+        columns:
+          type: array
+          items:
+            type: string
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+        duration_ms:
+          type: integer
+
+    # ── Schema ──────────────────────────────────────────────────────────────
+    Schema:
+      type: object
+      properties:
+        tables:
+          type: array
+          items:
+            $ref: "#/components/schemas/TableInfo"
+    TableInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        row_count:
+          type: integer
+        columns:
+          type: array
+          items:
+            $ref: "#/components/schemas/ColumnInfo"
+    ColumnInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        nullable:
+          type: boolean
+        primary:
+          type: boolean
+        default:
+          type: string
+
+    # ── Table Operations ────────────────────────────────────────────────────
+    CreateTableRequest:
+      type: object
+      required: [name, columns]
+      properties:
+        name:
+          type: string
+        columns:
+          type: string
+          description: Full CREATE TABLE column definitions as SQL string
+
+    # ── Samples ─────────────────────────────────────────────────────────────
+    SampleInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+
+    # ── Design ──────────────────────────────────────────────────────────────
+    DesignConfig:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        config:
+          type: string
+          description: JSON blob with design settings
+        active:
+          type: boolean
+        created_at:
+          type: string
+    DesignRequest:
+      type: object
+      required: [name, config]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        config:
+          type: string
+          description: JSON blob with design settings
+        active:
+          type: boolean
+
+    # ── Audit Log ───────────────────────────────────────────────────────────
+    AuditLogEntry:
+      type: object
+      properties:
+        user_id:
+          type: string
+        action:
+          type: string
+        details:
+          type: string
+        created_at:
+          type: string
+
+    # ── Permissions ─────────────────────────────────────────────────────────
+    PermissionGroup:
+      type: object
+      properties:
+        name:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+              label:
+                type: string
+              description:
+                type: string
+
+    # ── Users ───────────────────────────────────────────────────────────────
+    SafeUser:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        role:
+          type: string
+        extra_perm:
+          type: array
+          items:
+            type: string
+    CreateUserRequest:
+      type: object
+      required: [username, role]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        role:
+          type: string
+        extra_perm:
+          type: array
+          items:
+            type: string
+    UpdateUserRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        role:
+          type: string
+        extra_perm:
+          type: array
+          items:
+            type: string
+    UserPermissionsResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+        role:
+          type: string
+        role_perms:
+          type: array
+          items:
+            type: string
+        extra_perms:
+          type: array
+          items:
+            type: string
+        effective:
+          type: array
+          items:
+            type: string
+        db_access:
+          type: array
+          items:
+            type: string
+
+    # ── Roles ───────────────────────────────────────────────────────────────
+    Role:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        db_access:
+          type: array
+          items:
+            type: string
+    CreateRoleRequest:
+      type: object
+      required: [name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        db_access:
+          type: array
+          items:
+            type: string
+    UpdateRoleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        db_access:
+          type: array
+          items:
+            type: string
+
+    # ── API Keys ────────────────────────────────────────────────────────────
+    SafeAPIKey:
+      type: object
+      properties:
+        prefix:
+          type: string
+        name:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+    CreateAPIKeyRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+    CreateAPIKeyResponse:
+      type: object
+      properties:
+        raw_key:
+          type: string
+        prefix:
+          type: string
+        name:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        formatted:
+          type: string
+          description: Formatted key for display
+
+    # ── Transfer ────────────────────────────────────────────────────────────
+    StartTransferRequest:
+      type: object
+      required: [source_conn, target_conn]
+      properties:
+        source_conn:
+          type: string
+          description: Source connection ID
+        target_conn:
+          type: string
+          description: Target connection ID
+        tables:
+          type: array
+          items:
+            type: string
+          description: Tables to transfer (empty = all)
+        dry_run:
+          type: boolean
+          default: false
+        batch_size:
+          type: integer
+          default: 100
+        on_conflict:
+          type: string
+          enum: [error, skip, overwrite]
+          default: error
+    TransferStatus:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, done, failed, cancelled]
+        tables:
+          type: array
+          items:
+            type: string
+        source_type:
+          type: string
+        target_type:
+          type: string
+
+    # ── Suggest ─────────────────────────────────────────────────────────────
+    SuggestRequest:
+      type: object
+      properties:
+        connection_id:
+          type: string
+        input:
+          type: string
+        current_table:
+          type: string
+
+    # ── Execute Safe ────────────────────────────────────────────────────────
+    ExecuteSafeRequest:
+      type: object
+      required: [connection_id, sql]
+      properties:
+        connection_id:
+          type: string
+        sql:
+          type: string
+        confirm_high:
+          type: boolean
+          default: false
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    BadGateway:
+      description: Bad Gateway (database connection error)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

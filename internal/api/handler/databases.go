@@ -40,9 +40,9 @@ func CreateStandaloneDatabase(mgr *connection.Manager) gin.HandlerFunc {
 		}
 
 		var (
-			conn      *connection.Connection
-			cfg       plugin.Config
-			source    string
+			conn   *connection.Connection
+			cfg    plugin.Config
+			source string
 		)
 
 		switch dbType {
@@ -64,15 +64,31 @@ func CreateStandaloneDatabase(mgr *connection.Manager) gin.HandlerFunc {
 		default:
 			host := "localhost"
 			port := defaultPort(dbType)
+			// For MySQL/MariaDB: first connect to default DB, create the new database, then switch
+			defaultDB := defaultDBName(dbType)
 			cfg = plugin.Config{
 				Host:     host,
 				Port:     port,
-				Database: req.Name,
+				Database: defaultDB,
 				User:     defaultUser(dbType),
 				Password: "",
 			}
-			source = "local"
-			var err error
+			// Connect to default DB first to CREATE DATABASE
+			tmpConn, err := mgr.Add(c.Request.Context(), req.Name+"-tmp", plugin.DBType(dbType), source, cfg, nil)
+			if err != nil {
+				response.InternalError(c, "failed to connect: "+err.Error())
+				return
+			}
+			// Try creating the database (ignore "already exists" errors)
+			if _, err := mgr.Execute(c.Request.Context(), tmpConn.ID, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", quoteIdentMySQL(req.Name))); err != nil {
+				mgr.Remove(tmpConn.ID)
+				response.InternalError(c, "failed to create database: "+err.Error())
+				return
+			}
+			mgr.Remove(tmpConn.ID)
+
+			// Now connect to the new database
+			cfg.Database = req.Name
 			conn, err = mgr.Add(c.Request.Context(), req.Name, plugin.DBType(dbType), source, cfg, nil)
 			if err != nil {
 				response.InternalError(c, "failed to create connection: "+err.Error())
@@ -174,6 +190,21 @@ INSERT IGNORE INTO projects (name, description, user_id) VALUES ('Website Redesi
 		time.Sleep(100 * time.Millisecond)
 	}
 	return nil
+}
+
+func defaultDBName(dbType string) string {
+	switch dbType {
+	case "postgres":
+		return "postgres"
+	case "mysql", "mariadb":
+		return "test"
+	default:
+		return ""
+	}
+}
+
+func quoteIdentMySQL(name string) string {
+	return "`" + strings.ReplaceAll(name, "`", "``") + "`"
 }
 
 func splitSQL(sql string) []string {

@@ -32,7 +32,7 @@ func TestGenerateAndValidateToken(t *testing.T) {
 		t.Fatalf("failed to create JWT service: %v", err)
 	}
 
-	token, err := svc.GenerateToken("user1", "testuser", "admin", []string{"connections:list"})
+	token, err := svc.GenerateToken("user1", "testuser", "admin", []string{"connections:list"}, nil)
 	if err != nil {
 		t.Fatalf("failed to generate token: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestGenerateAndValidateWithEmptyPerms(t *testing.T) {
 		t.Fatalf("failed to create JWT service: %v", err)
 	}
 
-	token, err := svc.GenerateToken("u1", "un", "dev", nil)
+	token, err := svc.GenerateToken("u1", "un", "dev", nil, nil)
 	if err != nil {
 		t.Fatalf("failed to generate token: %v", err)
 	}

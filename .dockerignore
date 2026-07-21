@@ -1,0 +1,16 @@
+.git
+.gitignore
+node_modules/
+web/
+internal/dashboard/
+bin/
+docs/site/node_modules/
+docs/site/dist/
+*.exe
+*.log
+*.db
+*.db-journal
+database/storage/
+config/config.local.yaml
+config/config.local.json
+.DS_Store
