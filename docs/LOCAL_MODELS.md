@@ -66,6 +66,43 @@ ollama pull ornith:9b
 | Ornith 1.0 35B Q4_K_M | https://huggingface.co/deepreinforce-ai/Ornith-1.0-35B-GGUF |
 | DeepSeek R1 Distill Qwen 14B Q4_K_M | https://huggingface.co/lmstudio-community/DeepSeek-R1-Distill-Qwen-14B-GGUF |
 
+## Llama.cpp (direkt, ohne LM Studio/Ollama)
+
+Nutzt `llama-server` (Bestandteil von [llama.cpp](https://github.com/ggerganov/llama.cpp)).
+Erfordert: `llama-server` im PATH (Build-Anleitung siehe llama.cpp README).
+
+### Setup
+
+```bash
+# 1. llama-server bauen (einmalig)
+git clone https://github.com/ggerganov/llama.cpp
+cd llama.cpp
+make llama-server -j
+
+# 2. Modell herunterladen (siehe "Direkter Download" oben)
+mkdir -p models
+# .gguf in models/ ablegen
+
+# 3. Server starten (Port 8081)
+llama-server --model models/mein-model.gguf --port 8081 --ctx-size 4096 --n-gpu-layers -1
+```
+
+### go-database Konfiguration
+
+```yaml
+mcp:
+  provider: llamacpp
+  model: models/mein-model.gguf  # Pfad zur .gguf Datei
+```
+
+### Provider-Vergleich
+
+| Provider | Setup | Stream | Auto-Start |
+|----------|-------|--------|------------|
+| **LM Studio** | GUI + Download | ❌ | Manuell |
+| **Ollama** | `ollama pull` | ❌ | `ollama serve` |
+| **llama.cpp** | `llama-server` CLI | ✅ (OpenAI-kompatibel) | Manuell oder via `cmd/godb` |
+
 ## Konfiguration für go-database
 
 ### LM Studio (empfohlen für lokalen NL→SQL)

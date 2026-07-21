@@ -133,7 +133,25 @@ func main() {
 	}
 
 	// ---- AI Agent (uses same LLM client as MCP) ----
-	llmClient := llm.NewClient(cfg.MCP.Provider, cfg.MCP.APIKey, cfg.MCP.Model, "", cfg.MCP.FallbackPaid)
+	var llamaSrv *llm.LlamaCppServer
+	llamaURL := ""
+	if cfg.MCP.Provider == "llamacpp" {
+		llamaURL = fmt.Sprintf("http://localhost:%d", cfg.MCP.LlamaCpp.Port)
+		if cfg.MCP.LlamaCpp.AutoStart {
+			llamaSrv = llm.NewLlamaCppServer(llm.LlamaCppConfig{
+				ModelPath:  cfg.MCP.Model,
+				Port:       cfg.MCP.LlamaCpp.Port,
+				NGPULayers: -1,
+			})
+			if err := llamaSrv.Start(ctx); err != nil {
+				slog.Warn("llamacpp auto-start failed, continuing without LLM", "error", err)
+			} else {
+				slog.Info("llamacpp server started", "port", cfg.MCP.LlamaCpp.Port)
+				llamaURL = fmt.Sprintf("http://localhost:%d", cfg.MCP.LlamaCpp.Port)
+			}
+		}
+	}
+	llmClient := llm.NewClient(cfg.MCP.Provider, cfg.MCP.APIKey, cfg.MCP.Model, llamaURL, cfg.MCP.FallbackPaid)
 	auditFn := func(action, details string) { _ = store.LogAudit(ctx, "system", action, details) }
 	agent.InitAgent(llmClient, connMgr, auditFn)
 	handler.SetAgentLLM(llmClient)
@@ -174,6 +192,11 @@ func main() {
 	defer cancel()
 
 	prov.Shutdown(shutdownCtx)
+
+	if llamaSrv != nil {
+		_ = llamaSrv.Stop()
+		slog.Info("llamacpp server stopped")
+	}
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("forced shutdown", "error", err)

@@ -1,0 +1,7 @@
+{
+  "name": "ecommerce",
+  "display_name": "E-Commerce Plattform",
+  "description": "Produkte, Kategorien, Kunden, Bestellungen, Zahlungen, Versand",
+  "compatible": ["postgres", "mysql", "mariadb", "sqlite"],
+  "version": "1.0"
+}

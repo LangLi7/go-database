@@ -12,6 +12,7 @@ import (
 	"go-database/internal/connection"
 	"go-database/internal/crypto"
 	"go-database/internal/internaldb"
+	"go-database/internal/llm"
 	"go-database/internal/scheduler"
 	"go-database/internal/transfer"
 )
@@ -268,6 +269,14 @@ func SetupRoutes(r *gin.Engine, store *internaldb.Store, connMgr *connection.Man
 
 	// AI Setup wizard
 	r.POST("/api/v1/setup/ai", handler.HandleAISetup())
+
+	// SQL Templates
+	r.GET("/api/v1/templates", handler.ListTemplates())
+	r.POST("/api/v1/templates/apply", handler.ApplyTemplate(connMgr))
+
+	// Model download + start (llama.cpp)
+	r.POST("/api/v1/models/download", handler.DownloadModel())
+	r.POST("/api/v1/models/start", handler.StartModel(llm.FindLlamaCPP))
 
 	// Documentation server (renders docs/*.md as HTML)
 	r.GET("/docs", handler.HandleDocsRedirect)

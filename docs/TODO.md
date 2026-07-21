@@ -66,6 +66,17 @@
 - [ ] **Event System** — Event Bus + Webhooks
 - [ ] **Multi-Node / Cluster**
 
+## Phase 4b: llama.cpp Direct (Go-native, ohne LM Studio/Ollama)
+
+- [ ] **Concept** — `konzept/llama_cpp_direct.md` erstellt
+- [ ] **Config (`internal/config/config.go`)** — `ModelPath` + `LlamaCpp` Sub-Config in `MCP` struct
+- [ ] **Validator (`internal/mcp/httphandler.go`)** — `"llamacpp"` in `ValidateMCPConfig` erlauben
+- [ ] **NewClient (`internal/llm/client.go`)** — `"llamacpp"` nutzt Port aus Config statt hardcodiert
+- [ ] **LlamaCppServer (`internal/llm/llamacpp.go`)** — `FindLlamaCPP()` verbessern, `AutoModel()` implementieren
+- [ ] **Main (`cmd/server/main.go`)** — `LlamaCppServer` starten vor MCP Init, stoppen beim Shutdown
+- [ ] **Config (`config/config.yaml`)** — `llamacpp` Section ergänzen mit `auto_start`, `port`, `n_gpu_layers`
+- [ ] **Test** — Subprozess start/stop, Provider-Test, Config-Validierung
+
 ## Phase 5: Deployment & Qualität
 - [x] **Dockerfile** — Multi-Stage Go Build
 - [x] **docker-compose** — API + Sample DBs

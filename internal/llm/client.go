@@ -374,6 +374,12 @@ func NewClient(provider, apiKey, model, lmstudioURL string, allowPaid bool) Clie
 		return NewOllama("", model)
 	case "lmstudio":
 		return NewLMStudio(lmstudioURL, model)
+	case "llamacpp":
+		portURL := lmstudioURL
+		if portURL == "" {
+			portURL = "http://localhost:8081"
+		}
+		return NewLMStudio(portURL, model)
 	default:
 		return NewOpenRouter(apiKey, model, allowPaid)
 	}

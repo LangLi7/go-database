@@ -83,12 +83,19 @@ type InternalDB struct {
 
 // MCP holds the MCP server / NL2SQL configuration.
 type MCP struct {
-	Enabled      bool   `json:"enabled" yaml:"enabled"`
-	Endpoint     string `json:"endpoint" yaml:"endpoint"`           // HTTP path for MCP tools
-	APIKey       string `json:"api_key" yaml:"api_key"`             // Bearer token for MCP HTTP endpoints
-	Provider     string `json:"provider" yaml:"provider"`           // "openrouter" | "ollama" | "lmstudio"
-	Model        string `json:"model" yaml:"model"`                 // model name or "free"
-	FallbackPaid bool   `json:"fallback_paid" yaml:"fallback_paid"` // allow paid fallback when free models fail
+	Enabled       bool         `json:"enabled" yaml:"enabled"`
+	Endpoint      string       `json:"endpoint" yaml:"endpoint"`
+	APIKey        string       `json:"api_key" yaml:"api_key"`
+	Provider      string       `json:"provider" yaml:"provider"`
+	Model         string       `json:"model" yaml:"model"`
+	FallbackPaid  bool         `json:"fallback_paid" yaml:"fallback_paid"`
+	LlamaCpp      LlamaCppCfg  `json:"llamacpp" yaml:"llamacpp"`
+}
+
+// LlamaCppCfg holds llama.cpp subprocess settings.
+type LlamaCppCfg struct {
+	AutoStart bool `json:"auto_start" yaml:"auto_start"`
+	Port      int  `json:"port" yaml:"port"`
 }
 
 // Config is the root configuration
@@ -203,6 +210,9 @@ func (c *Config) setDefaults() {
 	// FallbackPaid defaults to false — user must explicitly allow paid model usage.
 	if !c.MCP.FallbackPaid {
 		c.MCP.FallbackPaid = false
+	}
+	if c.MCP.LlamaCpp.Port == 0 {
+		c.MCP.LlamaCpp.Port = 8081
 	}
 	// Harden JWT secret: if default or empty, generate a random one at startup
 	if c.Auth.JWTSecret == "" || c.Auth.JWTSecret == "change-me-in-production" {
