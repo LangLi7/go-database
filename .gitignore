@@ -2,7 +2,6 @@
 bin/
 go-database
 go-database.exe
-mcp
 mcp.exe
 server.exe
 *.test

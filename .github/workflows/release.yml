@@ -10,9 +10,7 @@ on:
         required: true
 
 env:
-  CARGO_TERM_COLORS: always
-  NODE_VERSION: '20'
-  GO_VERSION: '1.26'
+  GO_VERSION: '1.24'
 
 permissions:
   contents: write
@@ -40,91 +38,18 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-      - run: |
+      - name: Build
+        run: |
           GOOS=$(echo ${{ matrix.target }} | cut -d/ -f1)
           GOARCH=$(echo ${{ matrix.target }} | cut -d/ -f2)
-          cd web && npm ci && npm run build
-          cd ..
-          mkdir -p internal/dashboard/dist
-          cp -r web/dist/* internal/dashboard/dist/
           CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH \
-            go build -buildvfs=false \
-            -o "go-database-${{ matrix.target }}${{ matrix.ext }}" \
+            go build -o "go-database-${{ matrix.target }}${{ matrix.ext }}" \
             ./cmd/server/
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: go-database-${{ matrix.target }}
           path: go-database-${{ matrix.target }}${{ matrix.ext }}
-
-  # ── Tauri Desktop (Windows) ──
-  tauri-windows:
-    name: Tauri Windows
-    runs-on: windows-latest
-    needs: [backend]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Build Go sidecar
-        run: |
-          cd web
-          npm ci
-          npm run build
-          cd ..
-          go build -o "web/src-tauri/bin/go-database-server-x86_64-pc-windows-msvc.exe" ./cmd/server/
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        with:
-          projectPath: web
-          args: --bundles msi,nsis
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Upload Tauri artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: tauri-windows
-          path: web/src-tauri/target/release/bundle/
-
-  # ── Tauri Desktop (Linux) ──
-  tauri-linux:
-    name: Tauri Linux
-    runs-on: ubuntu-latest
-    needs: [backend]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install Linux deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev build-essential curl wget file \
-            libxdo-dev libssl-dev libayatana-appindicator3-dev \
-            librsvg2-dev libgtk-3-dev
-      - name: Build Go sidecar
-        run: |
-          cd web
-          npm ci
-          npm run build
-          cd ..
-          go build -o "web/src-tauri/bin/go-database-server-x86_64-unknown-linux-gnu" ./cmd/server/
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        with:
-          projectPath: web
-          args: --bundles deb,appimage
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Upload Tauri artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: tauri-linux
-          path: web/src-tauri/target/release/bundle/
 
   # ── Docker Image ──
   docker:
@@ -162,30 +87,18 @@ jobs:
   # ── Create GitHub Release ──
   release:
     name: Create Release
-    needs: [backend, tauri-windows, tauri-linux, docker]
+    needs: [backend, docker]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
           pattern: 'go-database-*'
           merge-multiple: true
-      - uses: actions/download-artifact@v4
-        with:
-          name: tauri-windows
-          path: tauri-windows
-      - uses: actions/download-artifact@v4
-        with:
-          name: tauri-linux
-          path: tauri-linux
       - name: Generate release notes
         run: |
           echo "## go-database ${{ github.ref_name }}" > release-notes.md
           echo "" >> release-notes.md
           echo "### Downloads" >> release-notes.md
-          echo "- **Windows (MSI)**: \`tauri-windows/msi/*.msi\`" >> release-notes.md
-          echo "- **Windows (NSIS)**: \`tauri-windows/nsis/*.exe\`" >> release-notes.md
-          echo "- **Linux (DEB)**: \`tauri-linux/deb/*.deb\`" >> release-notes.md
-          echo "- **Linux (AppImage)**: \`tauri-linux/appimage/*.AppImage\`" >> release-notes.md
           echo "- **Go binary (Linux amd64)**: \`go-database-linux/amd64\`" >> release-notes.md
           echo "- **Go binary (Linux arm64)**: \`go-database-linux/arm64\`" >> release-notes.md
           echo "- **Go binary (Windows)**: \`go-database-windows/amd64.exe\`" >> release-notes.md
@@ -196,7 +109,5 @@ jobs:
           body_path: release-notes.md
           files: |
             go-database-*
-            tauri-windows/**/*
-            tauri-linux/**/*
           draft: false
           prerelease: false

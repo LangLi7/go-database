@@ -278,6 +278,11 @@ func SetupRoutes(r *gin.Engine, store *internaldb.Store, connMgr *connection.Man
 	r.POST("/api/v1/models/download", handler.DownloadModel())
 	r.POST("/api/v1/models/start", handler.StartModel(llm.FindLlamaCPP))
 
+	// Hardware compatibility cookbook
+	r.GET("/api/v1/hardware", handler.HandleHardwareScan())
+	r.GET("/api/v1/recipes", handler.HandleRecipeList())
+	r.POST("/api/v1/recipes/:name", handler.HandleRecipeRun())
+
 	// Documentation server (renders docs/*.md as HTML)
 	r.GET("/docs", handler.HandleDocsRedirect)
 	r.GET("/docs/*slug", handler.HandleDocs)

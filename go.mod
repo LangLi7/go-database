@@ -1,6 +1,6 @@
 module go-database
 
-go 1.26.2
+go 1.25.7
 
 require (
 	github.com/dolthub/go-mysql-server v0.20.0
@@ -18,6 +18,7 @@ require (
 	github.com/microsoft/go-mssqldb v1.10.0
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/redis/go-redis/v9 v9.20.0
+	github.com/yuin/goldmark v1.8.4
 	go.mongodb.org/mongo-driver v1.17.9
 	golang.org/x/crypto v0.53.0
 	modernc.org/sqlite v1.52.0
@@ -95,7 +96,6 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
-	github.com/yuin/goldmark v1.8.4 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.6.0 // indirect
 	go.opentelemetry.io/otel v1.31.0 // indirect
 	go.opentelemetry.io/otel/trace v1.31.0 // indirect
