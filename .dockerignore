@@ -14,3 +14,5 @@ database/storage/
 config/config.local.yaml
 config/config.local.json
 .DS_Store
+models/
+_*/

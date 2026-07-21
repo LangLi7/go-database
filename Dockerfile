@@ -17,7 +17,7 @@ COPY --from=server-builder /go-database .
 COPY --from=server-builder /go-database-mcp .
 COPY config/config.yaml ./config/config.yaml
 COPY database/ ./database/
-COPY models/ ./models/
+# models/ NOT copied into image (multi-GB); mount via volume for llamacpp — see docker-compose mcp service
 
 EXPOSE 8080
 
