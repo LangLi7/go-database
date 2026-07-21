@@ -142,6 +142,7 @@ func main() {
 				ModelPath:  cfg.MCP.Model,
 				Port:       cfg.MCP.LlamaCpp.Port,
 				NGPULayers: -1,
+				Parallel:   cfg.MCP.LlamaCpp.Parallel,
 			})
 			if err := llamaSrv.Start(ctx); err != nil {
 				slog.Warn("llamacpp auto-start failed, continuing without LLM", "error", err)

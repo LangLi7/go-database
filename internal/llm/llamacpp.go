@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -17,6 +18,7 @@ type LlamaCppConfig struct {
 	ModelPath  string // path to .gguf file
 	Port       int    // server port (default 8081)
 	NGPULayers int    // GPU offload layers (-1 = all, 0 = CPU only)
+	Parallel   int    // concurrent request slots (0/1 = serial, see --parallel). ponytail: means one slot for single-user, raise for multi-user
 }
 
 // LlamaCppServer manages a llama-server subprocess.
@@ -56,18 +58,27 @@ func (s *LlamaCppServer) Start(ctx context.Context) error {
 		"--ctx-size", "4096",
 		"--n-gpu-layers", fmt.Sprintf("%d", s.cfg.NGPULayers),
 	}
+	if s.cfg.Parallel > 1 {
+		args = append(args, "--parallel", fmt.Sprintf("%d", s.cfg.Parallel), "--cont-batching", "--batch-size", "512")
+	}
 
 	s.cmd = exec.CommandContext(ctx, bin, args...)
 	s.cmd.Dir = filepath.Dir(bin) // load the .dll files that sit next to the binary
-	s.cmd.Stdout = nil
-	s.cmd.Stderr = nil
+	// ponytail: io.Discard not nil — nil stdout/stderr can crash llama.cpp on Windows at log time
+	s.cmd.Stdout = io.Discard
+	s.cmd.Stderr = io.Discard
 
 	if err := s.cmd.Start(); err != nil {
 		return fmt.Errorf("llamacpp: start failed: %w", err)
 	}
 
-	slog.Info("llamacpp server starting", "port", s.cfg.Port, "model", s.cfg.ModelPath)
-	if err := s.waitReady(ctx, 60*time.Second); err != nil {
+	slog.Info("llamacpp server starting", "port", s.cfg.Port, "model", s.cfg.ModelPath, "parallel", s.cfg.Parallel)
+	// ponytail: load time grows with parallel slots (more context alloc); give headroom
+	readyTimeout := 60 * time.Second
+	if s.cfg.Parallel > 1 {
+		readyTimeout = time.Duration(60+s.cfg.Parallel*30) * time.Second
+	}
+	if err := s.waitReady(ctx, readyTimeout); err != nil {
 		_ = s.cmd.Process.Kill()
 		return fmt.Errorf("llamacpp: not ready: %w", err)
 	}

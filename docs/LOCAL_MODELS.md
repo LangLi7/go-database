@@ -28,7 +28,21 @@ brauchen CUDA-DLLs, die standalone fehlen und mit Exit 127 abbrechen).
 
 **Hinweis Nebenläufigkeit:** Die REST- und Agent-API sind voll parallel (Go-Goroutines,
 `sync.RWMutex` im ConnectionManager). Der lokale `llama-server` verarbeitet Prompts
-aber **seriell** (1 Slot) — für Multi-User-AI `--parallel N --cont-batching` ergänzen.
+aber **seriell** (1 Slot) — für Multi-User-AI `parallel` in der Config erhöhen:
+
+```yaml
+mcp:
+  llamacpp:
+    parallel: 4   # --parallel 4 + --cont-batching: 4 gleichzeitige Slots
+```
+
+Bei `parallel > 1` startet go-database den llama-server mit `--parallel N --cont-batching`.
+Mehr Slots = mehr RAM (jeder Slot hält Kontext). Für Einzelnutzer bei `1` lassen.
+
+**Paid Provider (Multi-User ohne lokale Limits):** OpenRouter ist bereits integriert.
+`fallback_paid: true` + `model: "deepseek/deepseek-r1"` (günstig, stark bei SQL/Reasoning)
+oder `model: "anthropic/claude-3.5-haiku"` (bestes Tool-Use, teurer). API-seitig parallel,
+kein lokaler Slot-Engpass.
 
 ## Installierte Modelle (LM Studio)
 

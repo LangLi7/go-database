@@ -96,6 +96,7 @@ type MCP struct {
 type LlamaCppCfg struct {
 	AutoStart bool `json:"auto_start" yaml:"auto_start"`
 	Port      int  `json:"port" yaml:"port"`
+	Parallel  int  `json:"parallel" yaml:"parallel"` // concurrent request slots (>1 enables --parallel + --cont-batching)
 }
 
 // Config is the root configuration
