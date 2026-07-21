@@ -280,6 +280,7 @@ func SetupRoutes(r *gin.Engine, store *internaldb.Store, connMgr *connection.Man
 
 	// Hardware compatibility cookbook
 	r.GET("/api/v1/hardware", handler.HandleHardwareScan())
+	r.POST("/api/v1/hardware/submit", handler.HandleHardwareSubmit())
 	r.GET("/api/v1/recipes", handler.HandleRecipeList())
 	r.POST("/api/v1/recipes/:name", handler.HandleRecipeRun())
 

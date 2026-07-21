@@ -18,6 +18,30 @@ func HandleHardwareScan() gin.HandlerFunc {
 	}
 }
 
+// HandleHardwareSubmit accepts a Spec from a remote device and returns a
+// model recommendation for that hardware (no local scan needed).
+func HandleHardwareSubmit() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var spec hardware.Spec
+		if err := c.ShouldBindJSON(&spec); err != nil {
+			response.BadRequest(c, "valid hardware Spec JSON required")
+			return
+		}
+		spec.Submitted = true
+		ram := float64(spec.RAM.TotalGB)
+		if ram == 0 {
+			response.BadRequest(c, "spec.ram.total_gb required")
+			return
+		}
+		out, err := recipe.Run("recommend", map[string]any{"ram_gb": ram})
+		if err != nil {
+			response.Error(c, http.StatusInternalServerError, "recipe_error", err.Error())
+			return
+		}
+		response.Success(c, gin.H{"hardware": spec, "recommendation": out})
+	}
+}
+
 // HandleRecipeList lists available recipes.
 func HandleRecipeList() gin.HandlerFunc {
 	return func(c *gin.Context) {
