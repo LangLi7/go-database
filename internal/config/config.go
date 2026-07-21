@@ -155,9 +155,14 @@ func Load(paths ...string) (*Config, error) {
 		return nil, fmt.Errorf("config: loading env: %w", err)
 	}
 
-	// 4. Unmarshal into struct
+	// 4. Unmarshal into struct.
+	// koanf's default Unmarshal matches by field name and ignores json/yaml
+	// struct tags, so snake_case keys (auto_start, base_url, jwt_secret, ...)
+	// would be silently dropped. Tell mapstructure to honor the json tags.
 	var cfg Config
-	if err := k.Unmarshal("", &cfg); err != nil {
+	if err := k.UnmarshalWithConf("", &cfg, koanf.UnmarshalConf{
+		Tag: "json",
+	}); err != nil {
 		return nil, fmt.Errorf("config: unmarshal: %w", err)
 	}
 

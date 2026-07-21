@@ -226,9 +226,21 @@ func (a *Agent) buildPrompt(msg string) string {
 
 func cleanJSON(s string) string {
 	s = strings.TrimSpace(s)
+	// Strip <think>...</think> blocks emitted by reasoning models before the JSON.
+	if i := strings.LastIndex(s, "</think>"); i >= 0 {
+		s = s[i+len("</think>"):]
+	}
+	s = strings.TrimSpace(s)
 	s = strings.TrimPrefix(s, "```json")
 	s = strings.TrimPrefix(s, "```")
 	s = strings.TrimSuffix(s, "```")
+	s = strings.TrimSpace(s)
+	// Grab the first {...} object if the model wrapped it in prose.
+	if start := strings.Index(s, "{"); start >= 0 {
+		if end := strings.LastIndex(s, "}"); end > start {
+			s = s[start : end+1]
+		}
+	}
 	return strings.TrimSpace(s)
 }
 

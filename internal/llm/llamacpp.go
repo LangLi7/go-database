@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -43,6 +44,11 @@ func (s *LlamaCppServer) Start(ctx context.Context) error {
 		return fmt.Errorf("llamacpp: model path is required; set mcp.model in config")
 	}
 
+	bin := FindLlamaCPP()
+	if bin == "" {
+		return fmt.Errorf("llamacpp: llama-server not found in PATH or LM Studio extensions; install llama.cpp or set it in PATH")
+	}
+
 	args := []string{
 		"--model", s.cfg.ModelPath,
 		"--port", fmt.Sprintf("%d", s.cfg.Port),
@@ -51,7 +57,8 @@ func (s *LlamaCppServer) Start(ctx context.Context) error {
 		"--n-gpu-layers", fmt.Sprintf("%d", s.cfg.NGPULayers),
 	}
 
-	s.cmd = exec.CommandContext(ctx, "llama-server", args...)
+	s.cmd = exec.CommandContext(ctx, bin, args...)
+	s.cmd.Dir = filepath.Dir(bin) // load the .dll files that sit next to the binary
 	s.cmd.Stdout = nil
 	s.cmd.Stderr = nil
 
@@ -111,14 +118,28 @@ func FindLlamaCPP() string {
 	if home == "" {
 		home = os.Getenv("USERPROFILE")
 	}
-	candidates := []string{
-		home + "/.lmstudio/extensions/backends/llama.cpp-win-x86_64-avx2-2.20.1/llama-server.exe",
-		home + "/.lmstudio/extensions/backends/llama.cpp-win-x86_64-nvidia-cuda-avx2-2.20.1/llama-server.exe",
-		home + "/.lmstudio/extensions/backends/llama.cpp-win-x86_64-nvidia-cuda12-avx2-2.20.1/llama-server.exe",
+	// Glob installed backends. Prefer self-contained builds (avx2 CPU, vulkan)
+	// over CUDA: the CUDA builds need the CUDA runtime DLLs on PATH, which only
+	// exist inside the LM Studio process — standalone they fail with exit 127.
+	patterns := []string{
+		home + "/.lmstudio/extensions/backends/*avx2*/llama-server*",
+		home + "/.lmstudio/extensions/backends/*vulkan*/llama-server*",
+		home + "/.lmstudio/extensions/backends/*/llama-server*",
 	}
-	for _, c := range candidates {
-		if _, err := os.Stat(c); err == nil {
-			return c
+	for _, p := range patterns {
+		matches, _ := filepath.Glob(p)
+		// filter out cuda for the first pass (avx2 glob can match cuda-avx2 names)
+		if strings.Contains(p, "avx2") {
+			var nonCuda []string
+			for _, m := range matches {
+				if !strings.Contains(strings.ToLower(m), "cuda") {
+					nonCuda = append(nonCuda, m)
+				}
+			}
+			matches = nonCuda
+		}
+		if len(matches) > 0 {
+			return matches[len(matches)-1] // newest version (lexical sort)
 		}
 	}
 	return ""

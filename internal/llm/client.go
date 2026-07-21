@@ -66,7 +66,7 @@ func (c *OpenRouterClient) Stream(ctx context.Context, prompt string) (<-chan st
 	body, _ := json.Marshal(map[string]any{
 		"model": c.model,
 		"messages": []map[string]string{
-			{RoleUser: prompt},
+			{"role": RoleUser, "content": prompt},
 		},
 		"temperature": 0.0,
 		"stream":      true,
@@ -148,7 +148,7 @@ func (c *OpenRouterClient) tryModel(ctx context.Context, model, prompt string) (
 	body, _ := json.Marshal(map[string]any{
 		"model": model,
 		"messages": []map[string]string{
-			{RoleUser: prompt},
+			{"role": RoleUser, "content": prompt},
 		},
 		"temperature": 0.0,
 		"max_tokens":  1024,
@@ -215,7 +215,7 @@ func (c *LMStudioClient) Name() string { return "lmstudio" }
 func (c *LMStudioClient) Complete(ctx context.Context, prompt string) (string, error) {
 	body, _ := json.Marshal(map[string]any{
 		"model":      c.model,
-		"messages":   []map[string]string{{RoleUser: prompt}},
+		"messages":   []map[string]string{{"role": RoleUser, "content": prompt}},
 		"stream":     false,
 		"max_tokens": 2048,
 	})
@@ -243,9 +243,16 @@ func (c *LMStudioClient) Complete(ctx context.Context, prompt string) (string, e
 		return "", fmt.Errorf("parse: %w", err)
 	}
 	if len(result.Choices) == 0 {
-		return "", fmt.Errorf("no choices")
+		return "", fmt.Errorf("no choices (http %d): %s", resp.StatusCode, truncateRaw(raw, 300))
 	}
 	return strings.TrimSpace(result.Choices[0].Message.Content), nil
+}
+
+func truncateRaw(b []byte, n int) string {
+	if len(b) <= n {
+		return string(b)
+	}
+	return string(b[:n])
 }
 
 // FetchOpenRouterModels queries the OpenRouter API for available models (cached).
