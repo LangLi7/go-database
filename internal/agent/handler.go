@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"go-database/internal/ai"
 	"go-database/internal/connection"
 	"go-database/internal/llm"
 	"go-database/internal/plugin"
@@ -29,6 +30,8 @@ var availableTools = []ToolDef{
 	{Name: "schema", Description: "Show schema for a connection", InputSchema: `{"connection_id":"string"}`},
 	{Name: "list_databases", Description: "List databases on a connection", InputSchema: `{"connection_id":"string"}`},
 	{Name: "nl2sql", Description: "Convert natural language to SQL", InputSchema: `{"connection_id":"string","question":"string","schema_hint?":"string"}`},
+	{Name: "vector_search", Description: "Semantic search over a pgvector table: find rows most similar to a query", InputSchema: `{"connection_id":"string","table":"string","text_column":"string","embedding_column":"string","query":"string","k?":"int"}`},
+	{Name: "rag", Description: "Retrieve relevant context via vector_search then ask the LLM to answer a question from it", InputSchema: `{"connection_id":"string","table":"string","text_column":"string","embedding_column":"string","question":"string","k?":"int"}`},
 }
 
 // Agent routes NL input → LLM decides tool → executes → returns result.
@@ -37,6 +40,7 @@ type Agent struct {
 	gate   Gate
 	logger *slog.Logger
 	logFn  func(action, details string) // optional audit log
+	emb    ai.Embedder                  // nil → deterministic hash embedder
 
 	mu       sync.RWMutex
 	sessions map[string][]chatTurn // session_id → history
@@ -62,13 +66,18 @@ type Gate interface {
 
 var agent *Agent
 
-// InitAgent sets up the global agent singleton.
-func InitAgent(llmClient llm.Client, dbGate Gate, auditLogFn func(action, details string)) {
+// InitAgent sets up the global agent singleton. embedder may be nil — a
+// deterministic hash embedder is used then (offline/test mode, not semantic).
+func InitAgent(llmClient llm.Client, dbGate Gate, auditLogFn func(action, details string), embedder ai.Embedder) {
+	if embedder == nil {
+		embedder = &ai.HashEmbedder{}
+	}
 	agent = &Agent{
 		llm:      llmClient,
 		gate:     dbGate,
 		logger:   slog.Default(),
 		logFn:    auditLogFn,
+		emb:      embedder,
 		sessions: make(map[string][]chatTurn),
 	}
 	go agent.cleanupLoop()
@@ -206,9 +215,92 @@ func (a *Agent) executeTool(ctx context.Context, tc *toolCall) (any, error) {
 	case "list_databases":
 		cid, _ := tc.Args["connection_id"].(string)
 		return a.gate.Databases(ctx, cid)
+	case "vector_search":
+		return a.vectorSearch(ctx, tc.Args)
+	case "rag":
+		return a.rag(ctx, tc.Args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", tc.Name)
 	}
+}
+
+// vectorSearch embeds the query text and runs a pgvector nearest-neighbour
+// query (cosine distance) on the given table.
+func (a *Agent) vectorSearch(ctx context.Context, args map[string]any) (any, error) {
+	cid, _ := args["connection_id"].(string)
+	table, _ := args["table"].(string)
+	textCol, _ := args["text_column"].(string)
+	embCol, _ := args["embedding_column"].(string)
+	q, _ := args["query"].(string)
+	if cid == "" || table == "" || textCol == "" || embCol == "" || q == "" {
+		return nil, fmt.Errorf("vector_search needs connection_id, table, text_column, embedding_column, query")
+	}
+	k := 5
+	if kv, ok := args["k"].(float64); ok {
+		k = int(kv)
+	}
+	vec, err := a.emb.Embed(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("embed: %w", err)
+	}
+	// pgvector cosine distance operator <=>. Vector literal inlined (gate.Query
+	// takes no bound params; values are already embedded server-side-safe).
+	sql := fmt.Sprintf(
+		"SELECT %s, %s <=> '%s' AS distance FROM %s ORDER BY distance LIMIT %d",
+		quoteIdent(textCol), quoteIdent(embCol), ai.PgVectorLiteral(vec), quoteIdent(table), k,
+	)
+	res, err := a.gate.Query(ctx, cid, sql)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+// rag retrieves context via vector_search, then asks the LLM to answer.
+func (a *Agent) rag(ctx context.Context, args map[string]any) (any, error) {
+	res, err := a.vectorSearch(ctx, args)
+	if err != nil {
+		return nil, err
+	}
+	question, _ := args["question"].(string)
+	if question == "" {
+		question, _ = args["query"].(string)
+	}
+	// Build the augmented prompt from retrieved rows.
+	ctxText := summarizeResult(res)
+	prompt := fmt.Sprintf("Answer the question using ONLY the context below.\n\nContext:\n%s\n\nQuestion: %s", ctxText, question)
+	answer, err := a.llm.Complete(ctx, prompt)
+	if err != nil {
+		return nil, fmt.Errorf("llm generate: %w", err)
+	}
+	return map[string]any{
+		"answer":  answer,
+		"context": res,
+	}, nil
+}
+
+// quoteIdent safely quotes a SQL identifier.
+func quoteIdent(s string) string {
+	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+}
+
+// summarizeResult flattens a plugin.Result into readable text for the prompt.
+func summarizeResult(r any) string {
+	res, ok := r.(*plugin.Result)
+	if !ok || res == nil {
+		return ""
+	}
+	var b strings.Builder
+	for _, row := range res.Rows {
+		for i, col := range res.Columns {
+			if i > 0 {
+				b.WriteString(" | ")
+			}
+			fmt.Fprintf(&b, "%s=%v", col, row[i])
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
 }
 
 func (a *Agent) buildPrompt(msg string) string {

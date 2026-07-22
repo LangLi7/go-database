@@ -1,12 +1,27 @@
 # Konzept: AI-Database-Engine (Vektor · RAG · Embeddings)
 
-_Status:_ Brainstorming — nicht gebaut. Trigger: User will wissen, ob go-database
-als "Datenbank-Engine für AI" erweitert werden kann (Vektor-DB, RAG, Embeddings),
-in Richtung Obsidian-ähnlichem Projekt (Wissensdatenbank).
+_Status:_ **Phase 1 gebaut** (embeddings + `vector_search`/`rag` Agent-Tools).
+Trigger: User will go-database als "Datenbank-Engine für AI" (Vektor-DB, RAG,
+Embeddings), Richtung Obsidian-ähnliches semantisches Zettelkasten.
+
+## Was gebaut ist (Phase 1)
+
+- **`internal/ai/embed.go`** — `Embedder` interface + 3 Implementierungen:
+  - `OllamaEmbedder` (lokal, `/api/embed`, nomic-embed-text, kostenlos)
+  - `OpenAIEmbedder` (OpenAI-kompatibel `/v1/embeddings`, für Cloud-Modelle)
+  - `HashEmbedder` (deterministisch, dependency-frei, Offline/Test — _nicht_
+    semantisch; siehe Ponytail-Hinweis)
+- **Agent-Tools** `vector_search` + `rag` (in `internal/agent/handler.go`):
+  - `vector_search(connection_id, table, text_column, embedding_column, query, k)`
+    → embed() → pgvector `SELECT col, emb <=> '[...]' AS distance ... LIMIT k`
+  - `rag(...)` → vector_search → Kontext in Prompt → `llm.Complete` Antwort
+- **`InitAgent`** nimmt jetzt einen `Embedder` (nil → HashEmbedder Fallback).
+- Verifiziert: `internal/ai` Unit-Tests (Determinismus + PgVectorLiteral),
+  Agent-Test (pgvector-SQL wird korrekt gebaut).
 
 ## Was ist "AI-Database"?
 
-Ein Datenbanksystem, das nicht nur Zeilen/Spalten speichert, sondern **semantisch**
+...
 abgefragbar ist: "Finde alle Chats, in denen es um Login-Probleme ging" → Vektor-Suche
 statt `WHERE text LIKE '%login%'`.
 

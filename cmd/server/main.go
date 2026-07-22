@@ -159,7 +159,7 @@ func main() {
 	}
 	llmClient := llm.NewClient(cfg.MCP.Provider, cfg.MCP.APIKey, cfg.MCP.Model, llamaURL, cfg.MCP.FallbackPaid)
 	auditFn := func(action, details string) { _ = store.LogAudit(ctx, "system", action, details) }
-	agent.InitAgent(llmClient, guard, auditFn)
+	agent.InitAgent(llmClient, guard, auditFn, nil)
 	handler.SetAgentLLM(llmClient)
 	slog.Info("ai agent ready", "provider", cfg.MCP.Provider)
 
