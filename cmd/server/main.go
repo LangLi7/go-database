@@ -159,7 +159,7 @@ func main() {
 	}
 	llmClient := llm.NewClient(cfg.MCP.Provider, cfg.MCP.APIKey, cfg.MCP.Model, llamaURL, cfg.MCP.FallbackPaid)
 	auditFn := func(action, details string) { _ = store.LogAudit(ctx, "system", action, details) }
-	agent.InitAgent(llmClient, guard, auditFn, nil)
+	agent.InitAgent(llmClient, guard, auditFn, nil, cfg.DataDir+"/agent_memory.json")
 	handler.SetAgentLLM(llmClient)
 	slog.Info("ai agent ready", "provider", cfg.MCP.Provider)
 
@@ -167,7 +167,7 @@ func main() {
 	handler.InitDocs()
 
 	// ---- Routes ----
-	router.SetupRoutes(r, store, connMgr, jwtSvc, apikeySvc, transferEngine, sched, schedStore, cryptoSvc)
+	router.SetupRoutes(r, cfg, store, connMgr, jwtSvc, apikeySvc, transferEngine, sched, schedStore, cryptoSvc)
 	slog.Info("routes registered")
 
 	// ---- Server ----

@@ -11,6 +11,7 @@ import (
 
 	"go-database/internal/ai"
 	"go-database/internal/connection"
+	"go-database/internal/executor"
 	"go-database/internal/llm"
 	"go-database/internal/plugin"
 )
@@ -41,6 +42,7 @@ type Agent struct {
 	logger *slog.Logger
 	logFn  func(action, details string) // optional audit log
 	emb    ai.Embedder                  // nil → deterministic hash embedder
+	mem    *MemoryStore                 // persistent cross-session memory
 
 	mu       sync.RWMutex
 	sessions map[string][]chatTurn // session_id → history
@@ -68,11 +70,12 @@ var agent *Agent
 
 // InitAgent sets up the global agent singleton. embedder may be nil — a
 // deterministic hash embedder is used then (offline/test mode, not semantic).
-func InitAgent(llmClient llm.Client, dbGate Gate, auditLogFn func(action, details string), embedder ai.Embedder) {
+// memPath is the JSON file for persistent memory; "" disables persistence.
+func InitAgent(llmClient llm.Client, dbGate Gate, auditLogFn func(action, details string), embedder ai.Embedder, memPath string) {
 	if embedder == nil {
 		embedder = &ai.HashEmbedder{}
 	}
-	agent = &Agent{
+	a := &Agent{
 		llm:      llmClient,
 		gate:     dbGate,
 		logger:   slog.Default(),
@@ -80,6 +83,10 @@ func InitAgent(llmClient llm.Client, dbGate Gate, auditLogFn func(action, detail
 		emb:      embedder,
 		sessions: make(map[string][]chatTurn),
 	}
+	if memPath != "" {
+		a.mem = NewMemoryStore(memPath)
+	}
+	agent = a
 	go agent.cleanupLoop()
 }
 
@@ -100,10 +107,22 @@ type ChatResponse struct {
 }
 
 // HandleChat processes a natural-language request and returns the tool result.
-func HandleChat(ctx context.Context, msg, sessionID string) (*ChatResponse, error) {
+// dbAccess scopes the caller to specific connection IDs (from JWT extra_db_access
+// or API-key DBAccess); isAdmin bypasses the scope. This enforces per-user
+// DB isolation inside the Agent — previously the Agent saw ALL connections.
+func HandleChat(ctx context.Context, msg, sessionID string, dbAccess []string, isAdmin bool) (*ChatResponse, error) {
 	if agent == nil {
 		return nil, fmt.Errorf("agent not initialized")
 	}
+
+	// Bind a per-request scoped gate so tools only touch allowed connections.
+	scoped := agent.gate
+	if g, ok := scoped.(*executor.GuardGate); ok {
+		scoped = g.WithScope(dbAccess, isAdmin)
+	}
+	_old := agent.gate
+	agent.gate = scoped
+	defer func() { agent.gate = _old }()
 
 	// Session management
 	sid := sessionID
@@ -119,6 +138,15 @@ func HandleChat(ctx context.Context, msg, sessionID string) (*ChatResponse, erro
 	history = append(history, chatTurn{Role: "user", Content: msg})
 	agent.sessions[sid] = history
 	agent.mu.Unlock()
+
+	// Persistent memory: remember user input; flag corrections for self-improvement.
+	if agent.mem != nil {
+		if isCorrection(msg) {
+			agent.mem.Remember("correction", msg, sid)
+		} else {
+			agent.mem.Remember("fact", msg, sid)
+		}
+	}
 
 	toolCall, err := agent.decideTool(ctx, msg)
 	if err != nil {
@@ -308,6 +336,10 @@ func (a *Agent) buildPrompt(msg string) string {
 	b.WriteString("You are an AI database assistant. You have these tools:\n\n")
 	for _, t := range availableTools {
 		fmt.Fprintf(&b, "- %s: %s (args: %s)\n", t.Name, t.Description, t.InputSchema)
+	}
+	// Inject persistent memory so the agent recalls facts/corrections across sessions.
+	if a.mem != nil {
+		b.WriteString(a.mem.ContextPrompt(10))
 	}
 	b.WriteString("\nGiven the user request, respond with EXACTLY a JSON object:\n")
 	b.WriteString(`{"tool":"tool_name","args":{"arg1":"val1",...}}` + "\n")
