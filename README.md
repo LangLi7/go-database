@@ -39,6 +39,11 @@ Minecraft ───┘                            │            ├─── Mo
 - **API-only** — Single Binary (reines Go-Backend, kein eingebettetes Frontend)
 - **OpenAPI-kompatibel** — Alle Fehler als `{success, data, error, meta}`
 - **Mehrere Protokolle (geplant)** — REST ✅, WebSocket ✅, SSE ✅, sowie GraphQL/gRPC/OData/JSON-RPC/SOAP/MQTT/Webhooks/FIX als Design-Spec — siehe `docs/PROTOCOLS.md`
+- **Graph-Datenbank-Plugin** — Eigenständiger embedded Graph-DB-Typ (`graph`), Nodes/Edges/Traversal (BFS), JSON-File-Persistenz, kein externer Server
+- **AI-Database-Engine** — Vektor-Suche + RAG über das Agent-Tool-Set (`vector_search`, `rag`), pluggable Embedder (Ollama / OpenAI / Hash-Fallback)
+- **SSH-Style passwordless Admin-Login** — Ed25519 Public-Key Challenge-Response, keine Passwörter im Klartext; Admin-Accounts via `GODB_ADMIN_PUBKEYS` bootstrap
+- **API-Key-Isolation** — Keys gehören einem User (`owner_id`) + haben eigene `db_access`-Scopes; Multi-Tenant-fähig
+- **Luckperms-Rollen-Vererbung** — Rollen erben Permissions + DB-Access von Parent-Rollen (Permission `*` = Admin, `-db` = Deny-Wins)
 
 ---
 
@@ -225,6 +230,8 @@ internal/
 │   ├── middleware/         # Auth, CORS, Rate-Limit, Request-ID
 │   ├── response/           # Einheitliches {success, data, error, meta}
 │   └── router/             # Routen-Definitionen
+├── agent/                 # AI-Agent (NL→Tool-Routing, vector_search/rag Tools)
+├── ai/                    # Embedder (Ollama/OpenAI/Hash) für Vektor-Suche + RAG
 ├── auth/                   # JWT, API-Keys, bcrypt, Permissions, Roles
 ├── config/                 # YAML/JSON/Env-Konfiguration (koanf)
 ├── connection/             # Connection Manager + Health-Checker
@@ -244,7 +251,8 @@ plugins/
 ├── sqlite/                 # SQLite (modernc.org/sqlite)
 ├── mongodb/                # MongoDB (mongo-driver)
 └── redis/                  # Redis (go-redis/v9)
-config/config.yaml          # Default-Konfiguration
+└── graph/                  # Graph-DB (embedded, JSON-File-Persistenz)
+config/config.example.yaml  # Beispiel-Konfiguration (KEINE Secrets — nutze .env!)
 ```
 
 ---
@@ -253,7 +261,7 @@ config/config.yaml          # Default-Konfiguration
 
 | Komponente | Technologie |
 |-----------|------------|
-| Sprache | Go 1.26 |
+| Sprache | Go 1.25+ |
 | HTTP-Framework | Gin |
 | Dashboard | **separater Client** (eigene Tech, bindet nur über die API) |
 | Auth | JWT (golang-jwt) + bcrypt |
@@ -264,6 +272,17 @@ config/config.yaml          # Default-Konfiguration
 | Embedding | — (kein Frontend embedded; API-only) |
 | Logging | slog (strukturiertes JSON) |
 | Streaming | WebSocket (gorilla/websocket) + Server-Sent Events |
+
+---
+
+## Security & Konfiguration
+
+- **Secrets gehören NICHT in `config/config.yaml`** — die Datei ist gitignored. Setze API-Keys / JWT-Secret über `.env` (gitignored) oder Env-Variablen:
+  - `GODB_MCP_API_KEY` — OpenRouter/LM-Studio API-Key für den AI-Agent / MCP
+  - `GODB_AUTH_JWT_SECRET` — JWT-Signing-Secret (persistent über Restarts)
+  - `GODB_ADMIN_PUBKEYS` — JSON-Map `{username: "ssh-ed25519 ..."}` für passwordless Admin-Login
+- **Beispiel:** `cp config.example.yaml config/config.yaml` und ergänze Secrets nur per Env.
+- GitHub **Push Protection** blockiert Commits mit Secrets — rotiere betroffene Keys (OpenRouter etc.) bei Leak.
 
 ---
 
