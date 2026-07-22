@@ -33,3 +33,14 @@ log_level: "info"
 
 # Datenverzeichnis (default: database/)
 data_dir: "database"
+
+# AI Agent / MCP — LLM-Backend. API-Keys NICHT hier hart reinschreiben.
+# Setze sie stattdessen via .env (gitignored) oder Env-Var GODB_MCP_API_KEY
+# (koanf lädt automatisch alle GODB_* Env-Vars). Das config.yaml selbst ist
+# per .gitignore ausgeschlossen — trotzdem besser den Key über Env geben.
+mcp:
+  enabled: false
+  provider: "openrouter"      # openrouter | lmstudio | ollama | llamacpp
+  model: "free"               # "free" = kostenlose Modelle; sonst z.B. deepseek/deepseek-r1
+  api_key: ""                  # leer lassen → via GODB_MCP_API_KEY env var
+  fallback_paid: false        # true = bei lokalem Fehler/Timeout zu OpenRouter (kostenpflichtig)
