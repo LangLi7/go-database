@@ -32,7 +32,7 @@ type Role struct {
 	DBAccess    []string `json:"db_access"` // connection IDs this role can access
 }
 
-// User holds authentication and authorization data
+// User represents an account in the system.
 type User struct {
 	ID            string   `json:"id"`
 	Username      string   `json:"username"`
@@ -41,6 +41,7 @@ type User struct {
 	ExtraPerm     []string `json:"extra_perm,omitempty"`
 	ExtraDBAccess []string `json:"extra_db_access,omitempty"`
 	Email         string   `json:"email,omitempty"`
+	PublicKey     string   `json:"public_key,omitempty"` // ssh-ed25519 ... for passwordless login
 }
 
 // DefaultRoles returns the three built-in roles

@@ -25,6 +25,8 @@ config/config.local.yaml
 config/config.local.json
 # local secrets (api keys) — NEVER commit; use .env or GODB_MCP_API_KEY env var
 config/config.yaml
+# local admin private keys (passwordless login) — NEVER commit
+config/admin-keys.local.json
 
 # Runtime data (regenerated on first start / by docker init scripts)
 *.db

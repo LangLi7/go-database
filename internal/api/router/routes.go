@@ -42,6 +42,9 @@ func dbAccessMW(store *internaldb.Store) gin.HandlerFunc {
 func SetupRoutes(r *gin.Engine, store *internaldb.Store, connMgr *connection.Manager, jwt *auth.JWTService, apikeySvc *auth.APIKeyService, transferEngine transfer.TransferEngine, sched *scheduler.Scheduler, schedStore scheduler.SchedulerStore, cryptoSvc *crypto.Service) {
 
 	r.POST("/api/v1/auth/login", middleware.LoginRateLimit(), handler.Login(store, jwt))
+	// SSH-style passwordless login: client signs a server nonce with its private key
+	r.POST("/api/v1/auth/challenge", handler.Challenge())
+	r.POST("/api/v1/auth/login-pubkey", handler.LoginPubKey(store, jwt))
 	// Passkey (WebAuthn) public login ceremony
 	r.POST("/api/v1/auth/passkeys/login/begin", handler.PasskeyLoginBegin(store))
 	r.POST("/api/v1/auth/passkeys/login/finish", handler.PasskeyLoginFinish(store, jwt))

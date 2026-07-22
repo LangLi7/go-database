@@ -3,8 +3,10 @@ package internaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -191,48 +193,50 @@ func (s *Store) queryRow(ctx context.Context, query string, args ...any) *sql.Ro
 
 func (s *Store) SaveUser(ctx context.Context, u auth.User) error {
 	_, err := s.exec(ctx,
-		`INSERT OR REPLACE INTO users (id, username, password_hash, role, extra_perm, extra_db_access, email, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT OR REPLACE INTO users (id, username, password_hash, role, extra_perm, extra_db_access, email, public_key, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		u.ID, u.Username, u.PasswordHash, u.Role,
-		joinSlice(u.ExtraPerm), joinSlice(u.ExtraDBAccess), u.Email, time.Now().Unix())
+		joinSlice(u.ExtraPerm), joinSlice(u.ExtraDBAccess), u.Email, u.PublicKey, time.Now().Unix())
 	return err
 }
 
 func (s *Store) GetUser(ctx context.Context, username string) (*auth.User, error) {
 	row := s.queryRow(ctx,
-		`SELECT id, username, password_hash, role, COALESCE(extra_perm,''), COALESCE(extra_db_access,''), COALESCE(email,'')
+		`SELECT id, username, password_hash, role, COALESCE(extra_perm,''), COALESCE(extra_db_access,''), COALESCE(email,''), COALESCE(public_key,'')
 		 FROM users WHERE username = ?`, username)
 
 	var u auth.User
-	var extraPerm, extraDBAccess, email string
-	if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &extraPerm, &extraDBAccess, &email); err != nil {
+	var extraPerm, extraDBAccess, email, pubKey string
+	if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &extraPerm, &extraDBAccess, &email, &pubKey); err != nil {
 		return nil, fmt.Errorf("internaldb: user not found: %w", err)
 	}
 
 	u.ExtraPerm = splitSlice(extraPerm)
 	u.ExtraDBAccess = splitSlice(extraDBAccess)
 	u.Email = email
+	u.PublicKey = pubKey
 	return &u, nil
 }
 
 func (s *Store) GetUserByID(ctx context.Context, id string) (*auth.User, error) {
 	row := s.queryRow(ctx,
-		`SELECT id, username, password_hash, role, COALESCE(extra_perm,''), COALESCE(extra_db_access,''), COALESCE(email,'')
+		`SELECT id, username, password_hash, role, COALESCE(extra_perm,''), COALESCE(extra_db_access,''), COALESCE(email,''), COALESCE(public_key,'')
 		 FROM users WHERE id = ?`, id)
 	var u auth.User
-	var extraPerm, extraDBAccess, email string
-	if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &extraPerm, &extraDBAccess, &email); err != nil {
+	var extraPerm, extraDBAccess, email, pubKey string
+	if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &extraPerm, &extraDBAccess, &email, &pubKey); err != nil {
 		return nil, fmt.Errorf("internaldb: user not found: %w", err)
 	}
 	u.ExtraPerm = splitSlice(extraPerm)
 	u.ExtraDBAccess = splitSlice(extraDBAccess)
 	u.Email = email
+	u.PublicKey = pubKey
 	return &u, nil
 }
 
 func (s *Store) ListUsers(ctx context.Context) ([]auth.User, error) {
 	rows, err := s.query(ctx,
-		`SELECT id, username, password_hash, role, COALESCE(extra_perm,''), COALESCE(extra_db_access,''), COALESCE(email,'')
+		`SELECT id, username, password_hash, role, COALESCE(extra_perm,''), COALESCE(extra_db_access,''), COALESCE(email,''), COALESCE(public_key,'')
 		 FROM users ORDER BY username`)
 	if err != nil {
 		return nil, err
@@ -242,16 +246,17 @@ func (s *Store) ListUsers(ctx context.Context) ([]auth.User, error) {
 	var users []auth.User
 	for rows.Next() {
 		var u auth.User
-		var extraPerm, extraDBAccess, email string
-		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &extraPerm, &extraDBAccess, &email); err != nil {
-			continue
+		var extraPerm, extraDBAccess, email, pubKey string
+		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &extraPerm, &extraDBAccess, &email, &pubKey); err != nil {
+			return nil, err
 		}
 		u.ExtraPerm = splitSlice(extraPerm)
 		u.ExtraDBAccess = splitSlice(extraDBAccess)
 		u.Email = email
+		u.PublicKey = pubKey
 		users = append(users, u)
 	}
-	return users, nil
+	return users, rows.Err()
 }
 
 func (s *Store) DeleteUser(ctx context.Context, id string) error {
@@ -531,6 +536,7 @@ func (s *Store) migrate(ctx context.Context) error {
 			extra_perm TEXT DEFAULT '',
 			extra_db_access TEXT DEFAULT '',
 			email TEXT DEFAULT '',
+			public_key TEXT DEFAULT '',
 			created_at INTEGER NOT NULL
 		)`,
 		`CREATE TABLE IF NOT EXISTS roles (
@@ -581,15 +587,21 @@ func (s *Store) migrate(ctx context.Context) error {
 		}
 	}
 
-	// Migrate v2: add email column if missing (existing databases)
+	// Migrate v2: add email + public_key columns if missing (existing databases)
 	if s.driver != "postgres" {
 		if _, err := s.exec(ctx, `ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''`); err != nil {
+			// Column may already exist — ignore error
+		}
+		if _, err := s.exec(ctx, `ALTER TABLE users ADD COLUMN public_key TEXT DEFAULT ''`); err != nil {
 			// Column may already exist — ignore error
 		}
 	} else {
 		// PG: ADD COLUMN IF NOT EXISTS
 		if _, err := s.exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT DEFAULT ''`); err != nil {
 			slog.Warn("pg add email column", "error", err)
+		}
+		if _, err := s.exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS public_key TEXT DEFAULT ''`); err != nil {
+			slog.Warn("pg add public_key column", "error", err)
 		}
 	}
 
@@ -618,20 +630,51 @@ func (s *Store) seed(ctx context.Context) error {
 		return err
 	}
 	if count == 0 {
-		hash, err := auth.HashPassword("admin")
-		if err != nil {
-			return err
+		// SSH-style passwordless admin accounts from env (public keys only).
+		// Format: GODB_ADMIN_PUBKEYS={"chang":"ssh-ed25519 AAAA...","hermes":"ssh-ed25519 AAAA..."}
+		if pubKeys := os.Getenv("GODB_ADMIN_PUBKEYS"); pubKeys != "" {
+			var m map[string]string
+			if err := json.Unmarshal([]byte(pubKeys), &m); err == nil {
+				for username, pub := range m {
+					if username == "" || pub == "" {
+						continue
+					}
+					dummy, herr := auth.HashPassword("pubkey-only-" + username)
+					if herr != nil {
+						slog.Warn("seed pubkey admin: hash dummy", "user", username, "error", herr)
+						continue
+					}
+					adm := auth.User{
+						ID:           "admin-" + username,
+						Username:     username,
+						PasswordHash: dummy, // dummy; pubkey login only
+						Role:         "admin",
+						PublicKey:    pub,
+					}
+					if err := s.SaveUser(ctx, adm); err != nil {
+						return fmt.Errorf("internaldb: seed pubkey admin %s: %w", username, err)
+					}
+					slog.Info("seeded passwordless admin user", "username", username)
+				}
+			}
 		}
-		admin := auth.User{
-			ID:           "admin-001",
-			Username:     "admin",
-			PasswordHash: hash,
-			Role:         "admin",
+		// Fallback: default password admin (setup required on first login).
+		if _, err := s.GetUser(ctx, "admin"); err != nil {
+			hash, err := auth.HashPassword("admin")
+			if err != nil {
+				return err
+			}
+			admin := auth.User{
+				ID:           "admin-001",
+				Username:     "admin",
+				PasswordHash: hash,
+				Role:         "admin",
+			}
+			if err := s.SaveUser(ctx, admin); err != nil {
+				return fmt.Errorf("internaldb: seed admin: %w", err)
+			}
+			slog.Info("default admin user created — setup required on first login")
 		}
-		if err := s.SaveUser(ctx, admin); err != nil {
-			return fmt.Errorf("internaldb: seed admin: %w", err)
-		}
-		slog.Info("default admin user created — setup required on first login")
 	}
 
 	return nil
