@@ -32,6 +32,7 @@ import (
 	_ "go-database/plugins/mssql"
 	_ "go-database/plugins/mysql"
 	_ "go-database/plugins/postgres"
+	_ "go-database/plugins/graph"
 	_ "go-database/plugins/redis"
 	_ "go-database/plugins/sqlite"
 )

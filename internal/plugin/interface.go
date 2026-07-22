@@ -19,6 +19,7 @@ const (
 	TypeOracle     DBType = "oracle"
 	TypeClickHouse DBType = "clickhouse"
 	TypeElastic    DBType = "elasticsearch"
+	TypeGraph      DBType = "graph"
 
 	// TypeAuto triggers heuristic detection (by port / DSN prefix) at connect time.
 	TypeAuto DBType = "auto"

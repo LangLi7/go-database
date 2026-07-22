@@ -40,6 +40,9 @@ func DetectType(cfg Config) (DBType, bool) {
 
 	// 3. SQLite file
 	if cfg.FilePath != "" {
+		if strings.HasSuffix(strings.ToLower(cfg.FilePath), ".graph.json") {
+			return TypeGraph, true
+		}
 		return TypeSQLite, true
 	}
 
