@@ -18,7 +18,37 @@ func jsonError(w http.ResponseWriter, msg string, code int) {
 	_, _ = w.Write([]byte(`{"error":"` + strings.ReplaceAll(msg, `"`, `\"`) + `"}`))
 }
 
-// HTTPHandler returns an http.Handler that calls MCP tools via HTTP POST.
+// HTTPHandlerWithScope returns an http.Handler that scopes the DB gate to the
+// caller's db_access before each tool call. scope extracts (dbAccess, isAdmin)
+// from the request (e.g. from a gin context propagated via header). When scope
+// is nil the global gate is used unchanged.
+func HTTPHandlerWithScope(requireAPIKey func(r *http.Request) bool, scope func(r *http.Request) (dbAccess []string, isAdmin bool)) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if scope != nil {
+			dbAccess, isAdmin := scope(r)
+			prev := setRequestGate(ScopedGate(dbAccess, isAdmin))
+			defer setRequestGate(prev)
+		}
+		HTTPHandler(requireAPIKey).ServeHTTP(w, r)
+	})
+}
+
+// scopable is implemented by gates that support per-caller scoping (GuardGate).
+type scopable interface {
+	WithScope(dbAccess []string, isAdmin bool) DBGate
+}
+
+// ScopedGate returns connectionManager scoped to dbAccess/isAdmin, or the
+// unscoped gate if the underlying gate does not support scoping.
+func ScopedGate(dbAccess []string, isAdmin bool) DBGate {
+	if s, ok := connectionManager.(scopable); ok {
+		return s.WithScope(dbAccess, isAdmin)
+	}
+	return connectionManager
+}
+
+// SetScopedGate swaps in a per-request scoped gate and returns the previous one.
+func SetScopedGate(g DBGate) DBGate { return setRequestGate(g) }
 // Each request creates a fresh in-memory session, calls the tool, and returns JSON.
 // ponytail: one-shot session per request, no streaming; add persistent session when throughput matters.
 func HTTPHandler(requireAPIKey func(r *http.Request) bool) http.Handler {

@@ -350,3 +350,8 @@ func generateID() string {
 	}
 	return hex.EncodeToString(b)
 }
+
+// IsAllowed reports whether the caller may access connection id. The Manager
+// itself is unscoped (used by MCP stdio / admin); scoped callers go through
+// the executor.GuardGate which implements its own IsAllowed.
+func (m *Manager) IsAllowed(id string) bool { return true }

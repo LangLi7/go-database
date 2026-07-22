@@ -16,6 +16,7 @@ import (
 	"go-database/internal/api/response"
 	"go-database/internal/api/router"
 	"go-database/internal/auth"
+	"go-database/internal/config"
 	"go-database/internal/connection"
 	"go-database/internal/crypto"
 	"go-database/internal/internaldb"
@@ -102,7 +103,7 @@ func setupTestEnv(t *testing.T) {
 
 	testEngine = gin.New()
 	testEngine.Use(gin.Recovery())
-	router.SetupRoutes(testEngine, testStore, testMgr, testJWT, testAPIKey, testTransEngine, testSched, testSchedStore, testCrypto)
+	router.SetupRoutes(testEngine, &config.Config{}, testStore, testMgr, testJWT, testAPIKey, testTransEngine, testSched, testSchedStore, testCrypto)
 
 	// Login as admin to get token
 	token, err := loginAsAdmin()

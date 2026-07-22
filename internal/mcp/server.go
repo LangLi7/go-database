@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -17,6 +18,8 @@ import (
 // DBGate is the minimal surface the MCP tools need.
 type DBGate interface {
 	List() []connection.Summary
+	ListVisible(userID string, dbAccess []string, isAdmin bool) []connection.Summary
+	IsAllowed(id string) bool
 	GetConnection(id string) (*connection.Connection, error)
 	Query(ctx context.Context, id string, query string) (*plugin.Result, error)
 	Execute(ctx context.Context, id string, query string) (*plugin.Result, error)
@@ -45,18 +48,41 @@ func (s *Server) Connect(ctx context.Context, transport mcp.Transport, opts *mcp
 
 // --- DB tools ---
 
-var connectionManager DBGate
+var (
+	connectionManager DBGate
+	requestGate       DBGate // per-request scoped gate (set by HTTPHandlerWithScope)
+	gateMu            sync.Mutex
+)
 
 func SetDBGate(g DBGate) { connectionManager = g }
 
-func RegisterDBTools(s *mcp.Server, log *slog.Logger) {
-	gate := connectionManager
+// getGate returns the per-request scoped gate if set, else the global one.
+func getGate() DBGate {
+	gateMu.Lock()
+	defer gateMu.Unlock()
+	if requestGate != nil {
+		return requestGate
+	}
+	return connectionManager
+}
 
+// setRequestGate swaps in a per-request scoped gate and returns the previous
+// value so the caller can restore it. Serializes concurrent requests.
+// ponytail: global lock, per-request gates if throughput matters.
+func setRequestGate(g DBGate) DBGate {
+	gateMu.Lock()
+	prev := requestGate
+	requestGate = g
+	gateMu.Unlock()
+	return prev
+}
+
+func RegisterDBTools(s *mcp.Server, log *slog.Logger) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "list_connections",
 		Description: "List all configured database connections.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args struct{}) (*mcp.CallToolResult, any, error) {
-		conns := gate.List()
+		conns := getGate().List()
 		out := make([]map[string]any, 0, len(conns))
 		for _, c := range conns {
 			row := map[string]any{
@@ -88,7 +114,10 @@ func RegisterDBTools(s *mcp.Server, log *slog.Logger) {
 		ConnectionID string `json:"connection_id"`
 		SQL          string `json:"sql"`
 	}) (*mcp.CallToolResult, any, error) {
-		res, err := gate.Query(ctx, args.ConnectionID, args.SQL)
+		if !getGate().IsAllowed(args.ConnectionID) {
+			return errorResult(fmt.Errorf("access denied to connection %s", args.ConnectionID)), nil, nil
+		}
+		res, err := getGate().Query(ctx, args.ConnectionID, args.SQL)
 		if err != nil {
 			return errorResult(err), nil, nil
 		}
@@ -114,7 +143,10 @@ func RegisterDBTools(s *mcp.Server, log *slog.Logger) {
 		ConnectionID string `json:"connection_id"`
 		SQL          string `json:"sql"`
 	}) (*mcp.CallToolResult, any, error) {
-		res, err := gate.Execute(ctx, args.ConnectionID, args.SQL)
+		if !getGate().IsAllowed(args.ConnectionID) {
+			return errorResult(fmt.Errorf("access denied to connection %s", args.ConnectionID)), nil, nil
+		}
+		res, err := getGate().Execute(ctx, args.ConnectionID, args.SQL)
 		if err != nil {
 			return errorResult(err), nil, nil
 		}
@@ -135,7 +167,10 @@ func RegisterDBTools(s *mcp.Server, log *slog.Logger) {
 			"required": []string{"connection_id"},
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args struct{ ConnectionID string }) (*mcp.CallToolResult, any, error) {
-		tables, err := gate.Tables(ctx, args.ConnectionID)
+		if !getGate().IsAllowed(args.ConnectionID) {
+			return errorResult(fmt.Errorf("access denied to connection %s", args.ConnectionID)), nil, nil
+		}
+		tables, err := getGate().Tables(ctx, args.ConnectionID)
 		if err != nil {
 			return errorResult(err), nil, nil
 		}
@@ -153,7 +188,10 @@ func RegisterDBTools(s *mcp.Server, log *slog.Logger) {
 			"required": []string{"connection_id"},
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args struct{ ConnectionID string }) (*mcp.CallToolResult, any, error) {
-		schema, err := gate.Schema(ctx, args.ConnectionID)
+		if !getGate().IsAllowed(args.ConnectionID) {
+			return errorResult(fmt.Errorf("access denied to connection %s", args.ConnectionID)), nil, nil
+		}
+		schema, err := getGate().Schema(ctx, args.ConnectionID)
 		if err != nil {
 			return errorResult(err), nil, nil
 		}
@@ -171,7 +209,10 @@ func RegisterDBTools(s *mcp.Server, log *slog.Logger) {
 			"required": []string{"connection_id"},
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args struct{ ConnectionID string }) (*mcp.CallToolResult, any, error) {
-		dbs, err := gate.Databases(ctx, args.ConnectionID)
+		if !getGate().IsAllowed(args.ConnectionID) {
+			return errorResult(fmt.Errorf("access denied to connection %s", args.ConnectionID)), nil, nil
+		}
+		dbs, err := getGate().Databases(ctx, args.ConnectionID)
 		if err != nil {
 			return errorResult(err), nil, nil
 		}

@@ -28,6 +28,10 @@ func (f *fakeGate) Execute(ctx context.Context, id string, query string) (*plugi
 func (f *fakeGate) Tables(ctx context.Context, id string) ([]string, error)       { return nil, nil }
 func (f *fakeGate) Schema(ctx context.Context, id string) (*plugin.Schema, error) { return nil, nil }
 func (f *fakeGate) Databases(ctx context.Context, id string) ([]string, error)    { return nil, nil }
+func (f *fakeGate) ListVisible(userID string, dbAccess []string, isAdmin bool) []connection.Summary {
+	return f.List()
+}
+func (f *fakeGate) IsAllowed(id string) bool { return true }
 
 func TestMCPListConnections(t *testing.T) {
 	SetDBGate(&fakeGate{})

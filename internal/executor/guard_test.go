@@ -28,6 +28,9 @@ func (f *fakeMgr) Execute(ctx context.Context, id, sql string) (*plugin.Result, 
 func (f *fakeMgr) Tables(ctx context.Context, id string) ([]string, error) { return nil, nil }
 func (f *fakeMgr) Schema(ctx context.Context, id string) (*plugin.Schema, error) { return nil, nil }
 func (f *fakeMgr) Databases(ctx context.Context, id string) ([]string, error) { return nil, nil }
+func (f *fakeMgr) ListVisible(userID string, dbAccess []string, isAdmin bool) []connection.Summary {
+	return nil
+}
 
 func TestGuardGateBlocksHighRiskDelete(t *testing.T) {
 	fm := &fakeMgr{}
@@ -44,7 +47,7 @@ func TestGuardGateBlocksHighRiskDelete(t *testing.T) {
 
 func TestGuardGateAllowsSelect(t *testing.T) {
 	fm := &fakeMgr{}
-	g := NewGuardGate(fm)
+	g := NewGuardGate(fm).WithScope([]string{"conn1"}, false)
 	res, err := g.Query(context.Background(), "conn1", "SELECT * FROM users")
 	if err != nil {
 		t.Fatalf("SELECT should pass through guard: %v", err)

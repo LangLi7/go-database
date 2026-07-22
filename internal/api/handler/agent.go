@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"go-database/internal/agent"
 	"go-database/internal/api/response"
 	"go-database/internal/llm"
+	mcp "go-database/internal/mcp"
 )
 
 // HandleAgentChat processes a natural-language request via the AI agent.
@@ -33,7 +35,8 @@ func HandleAgentChat(logFn func(action, details string)) gin.HandlerFunc {
 		defer cancel()
 
 		slog.Info("agent chat", "message", req.Message[:min(len(req.Message), 100)], "session", req.SessionID)
-		resp, err := agent.HandleChat(ctx, req.Message, req.SessionID)
+		dbAccess, isAdmin := dbScopeFromContext(c)
+		resp, err := agent.HandleChat(ctx, req.Message, req.SessionID, dbAccess, isAdmin)
 		if err != nil {
 			if logFn != nil {
 				logFn("agent_error", fmt.Sprintf("msg=%q err=%v", req.Message[:min(len(req.Message), 100)], err))
@@ -72,7 +75,8 @@ func HandleAgentStream(logFn func(action, details string)) gin.HandlerFunc {
 		c.SSEvent("status", "processing")
 		c.Writer.Flush()
 
-		resp, err := agent.HandleChat(ctx, msg, sessionID)
+		scope, admin := dbScopeFromContext(c)
+		resp, err := agent.HandleChat(ctx, msg, sessionID, scope, admin)
 		if err != nil {
 			c.SSEvent("error", err.Error())
 			return
@@ -91,7 +95,8 @@ func streamAgentResponse(c *gin.Context, streamer llm.Streamer, msg, sessionID s
 	defer cancel()
 
 	// Call the agent (which calls LLM once to decide tool)
-	resp, err := agent.HandleChat(ctx, msg, sessionID)
+	scope, admin := dbScopeFromContext(c)
+	resp, err := agent.HandleChat(ctx, msg, sessionID, scope, admin)
 	if err != nil {
 		c.SSEvent("error", err.Error())
 		return
@@ -225,4 +230,39 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// dbScopeFromContext extracts the per-caller DB-access scope and admin flag
+// set by AuthMiddleware. JWT callers get extra_db_access; API-key callers get
+// db_access. isAdmin is true only for the built-in admin role. This is what
+// feeds Agent/MCP per-user DB isolation.
+func dbScopeFromContext(c *gin.Context) (dbAccess []string, isAdmin bool) {
+	if role, ok := c.Get("role"); ok {
+		if r, ok := role.(string); ok && r == "admin" {
+			isAdmin = true
+		}
+	}
+	if v, ok := c.Get("db_access"); ok {
+		if s, ok := v.([]string); ok {
+			dbAccess = s
+		}
+	}
+	if v, ok := c.Get("extra_db_access"); ok {
+		if s, ok := v.([]string); ok {
+			dbAccess = append(dbAccess, s...)
+		}
+	}
+	return dbAccess, isAdmin
+}
+
+// HandleMCP wraps the MCP HTTP handler with per-caller DB-access scoping.
+// Auth is enforced by the surrounding AuthMiddleware; here we only bind the
+// caller's db_access scope so MCP tools can only touch allowed connections.
+func HandleMCP(mcpHandler http.Handler) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		dbAccess, isAdmin := dbScopeFromContext(c)
+		prev := mcp.SetScopedGate(mcp.ScopedGate(dbAccess, isAdmin))
+		defer mcp.SetScopedGate(prev)
+		mcpHandler.ServeHTTP(c.Writer, c.Request)
+	}
 }
