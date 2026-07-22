@@ -40,7 +40,14 @@ data_dir: "database"
 # per .gitignore ausgeschlossen — trotzdem besser den Key über Env geben.
 mcp:
   enabled: false
-  provider: "openrouter"      # openrouter | lmstudio | ollama | llamacpp
-  model: "free"               # "free" = kostenlose Modelle; sonst z.B. deepseek/deepseek-r1
-  api_key: ""                  # leer lassen → via GODB_MCP_API_KEY env var
+  provider: "llamacpp"        # openrouter | lmstudio | ollama | llamacpp
+  # llamacpp/ollama: lokales Modell, kein API-Key nötig.
+  # model = .gguf-Dateiname (wird in ./models/ + ~/.lmstudio/models/ gesucht)
+  #   oder voller Pfad. Beispiel: "DeepSeek-R1-Distill-Q4_K_M.gguf"
+  model: ""                   # leer = Auto-Detection in models/; sonst GGUF-Name/Pfad
+  api_key: ""                  # nur für openrouter; leer lassen → GODB_MCP_API_KEY env
   fallback_paid: false        # true = bei lokalem Fehler/Timeout zu OpenRouter (kostenpflichtig)
+  llamacpp:
+    auto_start: true          # llama-server.exe automatisch starten (findet binary in PATH/LM Studio)
+    port: 8081
+    parallel: 1                # ponytail: 1 slot = single-user; erhöhen für multi-user

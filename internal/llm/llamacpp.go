@@ -169,20 +169,48 @@ func normalizePath(p string) string {
 	return p
 }
 
-// ResolveModelPath returns the full path for a model key.
-// Looks in ~/.lmstudio/models/<publisher>/<model-key>/ and ./models/.
+// ResolveModelPath returns the full path for a model key (bare name or partial).
+// Searches ./models/** and ~/.lmstudio/models/** recursively for a matching .gguf.
+// Returns "" if nothing found.
 func ResolveModelPath(modelKey string) string {
-	// Try common locations
+	if strings.HasSuffix(modelKey, ".gguf") && fileExists(modelKey) {
+		return modelKey
+	}
 	homeDir, _ := exec.Command("sh", "-c", "echo $HOME").Output()
 	home := strings.TrimSpace(string(homeDir))
-	candidates := []string{
-		fmt.Sprintf("%s/.lmstudio/models/%s/%s*.gguf", home, "*", modelKey),
-		fmt.Sprintf("./models/%s*.gguf", modelKey),
+	roots := []string{"./models"}
+	if home != "" {
+		roots = append(roots, filepath.Join(home, ".lmstudio", "models"))
 	}
-	// … glob would be nicer but we just log them
-	slog.Warn("llamacpp: model path not found automatically, set mcp.model to full .gguf path",
-		"searched", candidates)
-	return modelKey
+	for _, root := range roots {
+		matches, _ := filepath.Glob(filepath.Join(root, "**", modelKey+"*.gguf"))
+		if len(matches) > 0 {
+			return matches[0]
+		}
+		// fallback: any .gguf whose path contains the key
+		var found string
+		filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if !d.IsDir() && strings.HasSuffix(p, ".gguf") && strings.Contains(p, modelKey) {
+				found = p
+				return filepath.SkipAll
+			}
+			return nil
+		})
+		if found != "" {
+			return found
+		}
+	}
+	slog.Warn("llamacpp: model not found, set mcp.model to full .gguf path",
+		"searched", roots, "key", modelKey)
+	return ""
+}
+
+func fileExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
 }
 
 // AutoModel attempts to pick a suitable model from installed models.

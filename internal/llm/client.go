@@ -378,17 +378,52 @@ func (c *OllamaClient) Complete(ctx context.Context, prompt string) (string, err
 func NewClient(provider, apiKey, model, lmstudioURL string, allowPaid bool) Client {
 	switch provider {
 	case "ollama":
-		return NewOllama("", model)
+		base := lmstudioURL
+		if base == "" {
+			base = "http://localhost:11434"
+		}
+		return NewOllama(base, model)
 	case "lmstudio":
-		return NewLMStudio(lmstudioURL, model)
+		base := lmstudioURL
+		if base == "" {
+			base = "http://localhost:1234"
+		}
+		return NewLMStudio(base, model)
 	case "llamacpp":
+		// Real local llama.cpp: start the server (if a binary + model are
+		// available) and point a LMStudio-compatible client at it. Falls back
+		// to a no-op error client if neither binary nor model exists, so the
+		// agent degrades gracefully instead of crashing.
 		portURL := lmstudioURL
 		if portURL == "" {
 			portURL = "http://localhost:8081"
 		}
 		local := NewLMStudio(portURL, model)
+		// Resolve bare model name to a .gguf path (./models/, ~/.lmstudio/models)
+		modelPath := model
+		if !strings.Contains(model, "/") && !strings.Contains(model, "\\") {
+			if resolved := ResolveModelPath(model); resolved != "" {
+				modelPath = resolved
+			}
+		}
+		if bin := FindLlamaCPP(); bin != "" && modelPath != "" && model != "test" {
+			srv := NewLlamaCppServer(LlamaCppConfig{
+				ModelPath: modelPath,
+				Port:      8081,
+				Parallel:  1,
+			})
+			if err := srv.Start(context.Background()); err != nil {
+				slog.Warn("llamacpp: auto-start failed", "error", err)
+			} else {
+				if err := srv.waitReady(context.Background(), 30*time.Second); err != nil {
+					slog.Warn("llamacpp: not ready in time", "error", err)
+				} else {
+					slog.Info("llamacpp server ready", "port", 8081, "model", modelPath)
+				}
+			}
+		}
 		if allowPaid && apiKey != "" {
-			// local first, cloud (OpenRouter, parallel-native) on failure/timeout
+			// local first, cloud (OpenRouter) on failure/timeout
 			return NewFallbackClient(local, NewOpenRouter(apiKey, model, allowPaid), 20*time.Second)
 		}
 		return local
