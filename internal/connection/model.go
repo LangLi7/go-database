@@ -27,6 +27,7 @@ type Connection struct {
 	Latency   time.Duration `json:"latency_ms"`
 	Error     string        `json:"error,omitempty"`
 	Tags      []string      `json:"tags,omitempty"`
+	OwnerID   string        `json:"owner_id,omitempty"` // user who registered it; "" = system/global
 	CreatedAt time.Time     `json:"created_at"`
 	UpdatedAt time.Time     `json:"updated_at"`
 }

@@ -403,13 +403,13 @@ func TestSchemaFailPropagates(t *testing.T) {
 func TestIntegrationSQLiteTransfer(t *testing.T) {
 	mgr := connection.NewManager()
 
-	src, err := mgr.Add(context.Background(), "source", plugin.TypeSQLite, "test", plugin.Config{FilePath: ":memory:", Database: "src"}, nil)
+	src, err := mgr.Add(context.Background(), "source", plugin.TypeSQLite, "test", plugin.Config{FilePath: ":memory:", Database: "src"}, nil, "")
 	if err != nil {
 		t.Fatalf("create source: %v", err)
 	}
 	defer mgr.Remove(src.ID)
 
-	tgt, err := mgr.Add(context.Background(), "target", plugin.TypeSQLite, "test", plugin.Config{FilePath: ":memory:", Database: "tgt"}, nil)
+	tgt, err := mgr.Add(context.Background(), "target", plugin.TypeSQLite, "test", plugin.Config{FilePath: ":memory:", Database: "tgt"}, nil, "")
 	if err != nil {
 		t.Fatalf("create target: %v", err)
 	}

@@ -19,8 +19,27 @@ import (
 
 func ListConnections(mgr *connection.Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		response.Success(c, mgr.List())
+		// Multi-tenant isolation: non-admins see only their own connections
+		// (OwnerID == userID) plus any explicitly shared via db_access.
+		userID, _ := c.Get("user_id")
+		role, _ := c.Get("role")
+		isAdmin := role == "admin"
+		dbAccess := append(dbAccessFrom(c, "db_access"), dbAccessFrom(c, "extra_db_access")...)
+		uid, _ := userID.(string)
+		response.Success(c, mgr.ListVisible(uid, dbAccess, isAdmin))
 	}
+}
+
+// dbAccessFrom reads a []string db-access list from the gin context (best-effort).
+func dbAccessFrom(c *gin.Context, key string) []string {
+	v, ok := c.Get(key)
+	if !ok {
+		return nil
+	}
+	if s, ok := v.([]string); ok {
+		return s
+	}
+	return nil
 }
 
 func GetConnection(mgr *connection.Manager) gin.HandlerFunc {
@@ -157,7 +176,7 @@ func CreateConnection(mgr *connection.Manager) gin.HandlerFunc {
 			cfg.Type = detected
 		}
 
-		conn, err := mgr.Add(c.Request.Context(), req.Name, dbType, req.Source, cfg, req.Tags)
+		conn, err := mgr.Add(c.Request.Context(), req.Name, dbType, req.Source, cfg, req.Tags, userIDFrom(c))
 		if err != nil {
 			response.Error(c, http.StatusBadRequest, "CONNECTION_FAILED", err.Error())
 			return
@@ -365,4 +384,14 @@ func ExecuteConnection(mgr *connection.Manager) gin.HandlerFunc {
 		}
 		response.Success(c, result)
 	}
+}
+
+// userIDFrom extracts the authenticated user ID from the gin context.
+func userIDFrom(c *gin.Context) string {
+	if v, ok := c.Get("user_id"); ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
 }

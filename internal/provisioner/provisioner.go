@@ -77,7 +77,7 @@ func (p *Provisioner) provision(ctx context.Context, typ plugin.DBType, name, so
 		return fmt.Errorf("%s: %w", typ, err)
 	}
 
-	conn, err := p.mgr.Add(ctx, name, typ, source, *cfg, []string{"auto-provisioned"})
+	conn, err := p.mgr.Add(ctx, name, typ, source, *cfg, []string{"auto-provisioned"}, "")
 	if err != nil {
 		return fmt.Errorf("register %s: %w", typ, err)
 	}

@@ -55,7 +55,7 @@ func CreateStandaloneDatabase(mgr *connection.Manager) gin.HandlerFunc {
 			}
 			source = "local"
 			var err error
-			conn, err = mgr.Add(c.Request.Context(), req.Name, "sqlite", source, cfg, nil)
+			conn, err = mgr.Add(c.Request.Context(), req.Name, "sqlite", source, cfg, nil, userIDFrom(c))
 			if err != nil {
 				response.InternalError(c, "failed to create connection: "+err.Error())
 				return
@@ -74,7 +74,7 @@ func CreateStandaloneDatabase(mgr *connection.Manager) gin.HandlerFunc {
 				Password: "",
 			}
 			// Connect to default DB first to CREATE DATABASE
-			tmpConn, err := mgr.Add(c.Request.Context(), req.Name+"-tmp", plugin.DBType(dbType), source, cfg, nil)
+			tmpConn, err := mgr.Add(c.Request.Context(), req.Name+"-tmp", plugin.DBType(dbType), source, cfg, nil, userIDFrom(c))
 			if err != nil {
 				response.InternalError(c, "failed to connect: "+err.Error())
 				return
@@ -89,7 +89,7 @@ func CreateStandaloneDatabase(mgr *connection.Manager) gin.HandlerFunc {
 
 			// Now connect to the new database
 			cfg.Database = req.Name
-			conn, err = mgr.Add(c.Request.Context(), req.Name, plugin.DBType(dbType), source, cfg, nil)
+			conn, err = mgr.Add(c.Request.Context(), req.Name, plugin.DBType(dbType), source, cfg, nil, userIDFrom(c))
 			if err != nil {
 				response.InternalError(c, "failed to create connection: "+err.Error())
 				return

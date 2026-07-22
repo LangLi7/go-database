@@ -32,7 +32,7 @@ func NewManager() *Manager {
 }
 
 // Add creates and registers a new connection
-func (m *Manager) Add(ctx context.Context, name string, typ plugin.DBType, source string, cfg plugin.Config, tags []string) (*Connection, error) {
+func (m *Manager) Add(ctx context.Context, name string, typ plugin.DBType, source string, cfg plugin.Config, tags []string, ownerID string) (*Connection, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -52,6 +52,7 @@ func (m *Manager) Add(ctx context.Context, name string, typ plugin.DBType, sourc
 			Config:    cfg,
 			State:     StateConnecting,
 			Tags:      tags,
+			OwnerID:   ownerID,
 			CreatedAt: now,
 			UpdatedAt: now,
 		},
@@ -103,7 +104,7 @@ func (m *Manager) Get(id string) (*managedConn, error) {
 	return mc, nil
 }
 
-// List returns summaries of all connections
+// List returns summaries of all connections (admin / system overview).
 func (m *Manager) List() []Summary {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -119,6 +120,37 @@ func (m *Manager) List() []Summary {
 			Latency: mc.Latency,
 			Tags:    mc.Tags,
 		})
+	}
+	return summaries
+}
+
+// ListVisible returns only the connections a user may see: their own
+// (OwnerID == userID) plus any explicitly shared via dbAccess. Admins see all.
+// ponytail: single map scan, O(n); fine for the connection count we handle.
+func (m *Manager) ListVisible(userID string, dbAccess []string, isAdmin bool) []Summary {
+	if isAdmin {
+		return m.List()
+	}
+	allowed := make(map[string]bool, len(dbAccess))
+	for _, id := range dbAccess {
+		allowed[id] = true
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	summaries := make([]Summary, 0, len(m.conns))
+	for _, mc := range m.conns {
+		if mc.OwnerID == userID || allowed[mc.ID] {
+			summaries = append(summaries, Summary{
+				ID:      mc.ID,
+				Name:    mc.Name,
+				Type:    mc.Type,
+				Source:  mc.Source,
+				State:   mc.State,
+				Latency: mc.Latency,
+				Tags:    mc.Tags,
+			})
+		}
 	}
 	return summaries
 }
