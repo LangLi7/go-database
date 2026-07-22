@@ -125,15 +125,15 @@ func main() {
 	guard := executor.NewGuardGate(connMgr)
 
 	// ---- MCP Server (config-gesteuert) ----
+	// Route is registered (auth-scoped) in router.SetupRoutes — do NOT register
+	// here too or gin panics on duplicate /api/v1/mcp. Only configure the gate.
 	if cfg.MCP.Enabled {
 		if err := mcp.ValidateMCPConfig(cfg.MCP.Provider, cfg.MCP.Model, cfg.MCP.APIKey); err != nil {
 			slog.Error("invalid mcp config", "error", err)
 		} else {
 			mcp.SetDBGate(guard)
 			mcp.SetNL2SQLConfig(cfg.MCP.Provider, cfg.MCP.Model, cfg.MCP.APIKey, "", cfg.MCP.FallbackPaid)
-			mcpHandler := mcp.HTTPHandler(mcp.APIKeyMiddleware(cfg.MCP.APIKey))
-			r.Any(cfg.MCP.Endpoint, gin.WrapH(mcpHandler))
-			slog.Info("mcp http endpoint ready", "path", cfg.MCP.Endpoint, "provider", cfg.MCP.Provider)
+			slog.Info("mcp configured", "path", cfg.MCP.Endpoint, "provider", cfg.MCP.Provider)
 		}
 	}
 
