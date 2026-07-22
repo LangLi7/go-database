@@ -77,10 +77,11 @@ func (s *LlamaCppServer) Start(ctx context.Context) error {
 	}
 
 	slog.Info("llamacpp server starting", "port", s.cfg.Port, "model", s.cfg.ModelPath, "parallel", s.cfg.Parallel)
-	// ponytail: load time grows with parallel slots (more context alloc); give headroom
-	readyTimeout := 60 * time.Second
+	// ponytail: load time grows with model size + cold volume mount (Docker/HDD);
+	// 600s covers ~35GB models on first container start from a slow mount. Bump if larger.
+	readyTimeout := 600 * time.Second
 	if s.cfg.Parallel > 1 {
-		readyTimeout = time.Duration(60+s.cfg.Parallel*30) * time.Second
+		readyTimeout = time.Duration(600+s.cfg.Parallel*30) * time.Second
 	}
 	if err := s.waitReady(ctx, readyTimeout); err != nil {
 		_ = s.cmd.Process.Kill()

@@ -1,5 +1,12 @@
 # go-database — Full Stack Deployment
 # Includes: API, Sample Databases, Internal DB
+#
+# Preconfigured Docker deployment. Toggle AI backend + scale pods via profiles/env:
+#   docker compose up                              # API + openrouter MCP (default profile)
+#   GODB_MCP_PROVIDER=llamacpp docker compose up   # local .gguf models via llama-server (auto-started in container)
+#   docker compose --profile llamacpp up           # explicit local-model profile
+#   docker compose up --scale api=3                # 3 API pods, each with own llama-server
+#   GODB_MCP_LLAMACPP_NGPU=99 docker compose up    # offload layers to GPU (needs NVIDIA toolkit, see deploy block)
 
 services:
   api:
@@ -10,13 +17,28 @@ services:
     environment:
       GODB_AUTH_JWT_SECRET: "${GODB_JWT_SECRET:-}"
       GODB_LOG_LEVEL: "info"
-      GODB_MCP_ENABLED: "${GODB_MCP_ENABLED:-false}"
+      GODB_MCP_ENABLED: "${GODB_MCP_ENABLED:-true}"
       GODB_MCP_API_KEY: "${GODB_MCP_API_KEY:-}"
-      GODB_MCP_PROVIDER: "${GODB_MCP_PROVIDER:-openrouter}"
-      GODB_MCP_MODEL: "${GODB_MCP_MODEL:-free}"
+      GODB_MCP_PROVIDER: "${GODB_MCP_PROVIDER:-llamacpp}"
+      GODB_MCP_MODEL: "${GODB_MCP_MODEL:-Ornith-1.0-9B}"
       GODB_MCP_FALLBACK_PAID: "${GODB_MCP_FALLBACK_PAID:-false}"
+      # llamacpp: server launches llama-server itself (config.yaml llamacpp.auto_start=true, models/ volume mounted)
+      GODB_MCP_LLAMACPP_PORT: "${GODB_MCP_LLAMACPP_PORT:-8081}"
+      GODB_MCP_LLAMACPP_NGPU: "${GODB_MCP_LLAMACPP_NGPU:-0}"
     volumes:
       - internal-db:/app/database/internal
+      - ./models:/app/models:ro
+      # mount your own config to preconfigure (overrides the image's config.yaml):
+      - ./config/config.yaml:/app/config/config.yaml:ro
+    # GPU/VRAM for AI pods — uncomment to expose VRAM; multiple replicas share the host GPU.
+    # deploy:
+    #   replicas: 3            # multiple pods, each runs its own llama-server on a slice of VRAM/RAM
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
       interval: 30s

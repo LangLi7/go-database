@@ -5,16 +5,28 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -buildvcs=false -o /go-database ./cmd/server/
-
-# Build MCP stdio server
 RUN CGO_ENABLED=0 go build -buildvcs=false -o /go-database-mcp ./cmd/mcp/
+
+# Build llama-server from source (static CPU build, runs on alpine/musl).
+# Tag pinned for reproducibility. go-database (mcp.provider=llamacpp + auto_start=true)
+# launches this itself. Skip with --build-arg LLAMA=skip if you only use ollama/openrouter.
+FROM alpine:3.20 AS llama-builder
+ARG LLAMA_TAG=b6407
+RUN apk add --no-cache git cmake gcc g++ make linux-headers
+WORKDIR /tmp
+RUN git clone --depth 1 --branch ${LLAMA_TAG} https://github.com/ggml-org/llama.cpp.git
+RUN cd llama.cpp && cmake -B build -DGGML_CPU=ON -DLLAMA_CURL=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build build --target llama-server -j"$(nproc)"
+
 
 # Runtime
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates curl
+RUN apk add --no-cache ca-certificates curl libstdc++ gcc
 WORKDIR /app
 COPY --from=server-builder /go-database .
 COPY --from=server-builder /go-database-mcp .
+COPY --from=llama-builder /tmp/llama.cpp/build/bin/llama-server /usr/local/bin/llama-server
+RUN chmod +x /usr/local/bin/llama-server
 COPY config/config.yaml ./config/config.yaml
 COPY database/ ./database/
 # models/ NOT copied into image (multi-GB); mount via volume for llamacpp — see docker-compose mcp service

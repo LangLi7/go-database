@@ -247,9 +247,56 @@ func (a *Agent) executeTool(ctx context.Context, tc *toolCall) (any, error) {
 		return a.vectorSearch(ctx, tc.Args)
 	case "rag":
 		return a.rag(ctx, tc.Args)
+	case "nl2sql":
+		return a.nl2sql(ctx, tc.Args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", tc.Name)
 	}
+}
+
+// nl2sql converts a natural-language question into SQL via the LLM, then runs it.
+// ponytail: single LLM pass, no schema-aware validation; trusts gate.Query for safety.
+func (a *Agent) nl2sql(ctx context.Context, args map[string]any) (any, error) {
+	cid, _ := args["connection_id"].(string)
+	q, _ := args["question"].(string)
+	if cid == "" || q == "" {
+		return nil, fmt.Errorf("nl2sql needs connection_id and question")
+	}
+	schema, err := a.gate.Schema(ctx, cid)
+	if err != nil {
+		return nil, fmt.Errorf("nl2sql: schema: %w", err)
+	}
+	prompt := fmt.Sprintf("Database schema:\n%+v\n\nWrite a single SQL query that answers: %s\nReturn only the SQL, no explanation, no markdown.", schema, q)
+	raw, err := a.llm.Complete(ctx, prompt)
+	if err != nil {
+		return nil, fmt.Errorf("nl2sql: llm: %w", err)
+	}
+	sql := extractSQL(raw)
+	if sql == "" {
+		return nil, fmt.Errorf("nl2sql: could not parse SQL from: %s", raw)
+	}
+	return a.gate.Query(ctx, cid, sql)
+}
+
+// extractSQL pulls a SQL statement out of an LLM response, handling
+// ```sql fences, leading prose, and trailing commentary.
+func extractSQL(s string) string {
+	s = strings.TrimSpace(s)
+	// strip ```sql ... ``` or ``` ... ```
+	if i := strings.Index(s, "```"); i >= 0 {
+		rest := s[i+3:]
+		rest = strings.TrimPrefix(rest, "sql")
+		rest = strings.TrimSpace(rest)
+		if j := strings.Index(rest, "```"); j >= 0 {
+			rest = rest[:j]
+		}
+		s = strings.TrimSpace(rest)
+	}
+	// take up to first semicolon if present (single statement)
+	if i := strings.Index(s, ";"); i >= 0 {
+		s = s[:i+1]
+	}
+	return strings.TrimSpace(s)
 }
 
 // vectorSearch embeds the query text and runs a pgvector nearest-neighbour
