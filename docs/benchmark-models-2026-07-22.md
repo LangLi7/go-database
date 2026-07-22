@@ -4,6 +4,7 @@
 **Binary:** `llama.cpp-win-x86_64-avx2-2.20.1` (CPU/RAM) bzw. `vulkan-avx2-2.20.1` (GPU/VRAM)
 **Host:** Windows, Ryzen (AVX2), 32 GB RAM, RTX 3060 12 GB VRAM
 **Messmethode:** `llama-server` mit `--ctx-size 2048`, Prompt "Explain what a database index is one sentence.", `n_predict=128`, `timings=true`. Wert = `predicted_per_second` (Generierung, nicht Prompt-Eval).
+**CPU-Zahlen:** vollständiger Run über alle 17 GGUFs (`ngl=0`, RAM). **GPU-Zahlen:** nur VRAM-passende Modelle (9B + 8B, alle Quants) via Vulkan-Build.
 
 ---
 
@@ -11,27 +12,27 @@
 
 | Modell | Quant | Größe | tok/s | RAM ok? |
 |--------|-------|-------|-------|---------|
-| DeepSeek-R1-0528-Qwen3-8B | Q3_K_L | 4.13 GB | 13.83 | ✅ |
+| DeepSeek-R1-0528-Qwen3-8B | Q3_K_L | 4.13 GB | 14.77 | ✅ |
 | DeepSeek-R1-0528-Qwen3-8B | Q4_K_M | 4.68 GB | 11.93 | ✅ |
-| DeepSeek-R1-0528-Qwen3-8B | Q6_K | 6.26 GB | 9.53 | ✅ |
-| DeepSeek-R1-0528-Qwen3-8B | Q8_0 | 8.11 GB | 8.44 | ✅ |
+| DeepSeek-R1-0528-Qwen3-8B | Q6_K | 6.26 GB | 9.84 | ✅ |
+| DeepSeek-R1-0528-Qwen3-8B | Q8_0 | 8.11 GB | 8.55 | ✅ |
 | DeepSeek-R1-Distill-Qwen-14B | Q4_K_M | 8.37 GB | 6.77 | ✅ |
-| DeepSeek-R1-Distill-Qwen-14B-Uncensored | Q3_K_S | 6.20 GB | 8.76 | ✅ |
-| DeepSeek-R1-Distill-Qwen-14B-Uncensored | Q4_K_S | 7.98 GB | 7.24 | ✅ |
-| Qwen3-14B | Q4_K_M | 8.38 GB | 7.02 | ✅ |
-| Qwen3-14B | Q6_K | 11.29 GB | 5.56 | ✅ |
-| gemma-4-12B-agentic-... | Q2_K | 4.50 GB | 14.93 | ✅ |
-| gemma-4-12B-agentic-... | Q4_K_S | 6.54 GB | 8.07 | ✅ |
-| gemma-4-12B-agentic-... | Q6_K | 9.11 GB | 6.16 | ✅ |
-| gemma-4-12B-agentic-... | Q8_0 | 11.80 GB | 5.31 | ✅ |
-| Ornith-1.0-9B | Q4_K_M | 5.24 GB | 9.99 | ✅ |
-| Ornith-1.0-9B | Q5_K_M | 6.02 GB | 10.13 | ✅ |
-| Ornith-1.0-9B | Q6_K | 6.85 GB | 8.57 | ✅ |
-| Ornith-1.0-35B | Q4_K_M | 19.71 GB | 11.91 | ✅ (passt in 32 GB RAM) |
+| DeepSeek-R1-Distill-Qwen-14B-Uncensored | Q3_K_S | 6.20 GB | 8.42 | ✅ |
+| DeepSeek-R1-Distill-Qwen-14B-Uncensored | Q4_K_S | 7.98 GB | 6.63 | ✅ |
+| Qwen3-14B | Q4_K_M | 8.38 GB | 6.65 | ✅ |
+| Qwen3-14B | Q6_K | 11.29 GB | 5.36 | ✅ |
+| gemma-4-12B-agentic-... | Q2_K | 4.50 GB | 14.67 | ✅ |
+| gemma-4-12B-agentic-... | Q4_K_S | 6.54 GB | 7.85 | ✅ |
+| gemma-4-12B-agentic-... | Q6_K | 9.11 GB | 5.98 | ✅ |
+| gemma-4-12B-agentic-... | Q8_0 | 11.80 GB | 5.11 | ✅ |
+| Ornith-1.0-9B | Q4_K_M | 5.24 GB | 9.72 | ✅ |
+| Ornith-1.0-9B | Q5_K_M | 6.02 GB | 9.53 | ✅ |
+| Ornith-1.0-9B | Q6_K | 6.85 GB | 7.60 | ✅ |
+| Ornith-1.0-35B | Q4_K_M | 19.71 GB | 11.58 | ✅ (passt in 32 GB RAM) |
 
 **Fazit CPU/RAM:**
 - Alle Modelle laufen auf CPU/RAM ohne GPU — ein Root-Server ohne GPU kann jedes dieser Modelle betreiben.
-- 8B-Klasse: ~12–14 tok/s (flüssig für Chat). 14B-Klasse: ~6–8 tok/s (langsam, aber nutzbar). 35B: ~12 tok/s (überraschend schnell, passt in 32 GB RAM).
+- 8B-Klasse: ~12–15 tok/s (flüssig für Chat). 14B-Klasse: ~5–7 tok/s (langsam, aber nutzbar). 35B: ~12 tok/s (überraschend schnell, passt in 32 GB RAM).
 - **Ornith-1.0-9B Q4_K_M empfohlen** für Root-Server: 5.2 GB, ~10 tok/s, gutes Preis/Leistung.
 
 ---
@@ -40,24 +41,27 @@
 
 | Modell | Quant | tok/s GPU | tok/s CPU | Speedup |
 |--------|-------|-----------|-----------|---------|
-| Ornith-1.0-9B | Q4_K_M | 45.49 | 9.99 | **4.6×** |
-| Ornith-1.0-9B | Q5_K_M | 45.37 | 10.13 | **4.5×** |
-| Ornith-1.0-9B | Q6_K | 45.21 | 8.57 | **5.3×** |
-| DeepSeek-R1-0528-Qwen3-8B | Q3_K_L | 45.59 | 13.83 | **3.3×** |
+| Ornith-1.0-9B | Q4_K_M | 45.49 | 9.72 | **4.7×** |
+| Ornith-1.0-9B | Q5_K_M | 45.37 | 9.53 | **4.8×** |
+| Ornith-1.0-9B | Q6_K | 45.21 | 7.60 | **6.0×** |
+| DeepSeek-R1-0528-Qwen3-8B | Q3_K_L | 45.59 | 14.77 | **3.1×** |
 | DeepSeek-R1-0528-Qwen3-8B | Q4_K_M | 45.11 | 11.93 | **3.8×** |
-| DeepSeek-R1-0528-Qwen3-8B | Q6_K | 44.57 | 9.53 | **4.7×** |
-| DeepSeek-R1-0528-Qwen3-8B | Q8_0 | 44.14 | 8.44 | **5.2×** |
+| DeepSeek-R1-0528-Qwen3-8B | Q6_K | 44.57 | 9.84 | **4.5×** |
+| DeepSeek-R1-0528-Qwen3-8B | Q8_0 | 44.14 | 8.55 | **5.2×** |
 
-> **Warum fehlen 14B/35B in der GPU-Spalte?** Die CUDA-Builds von LM Studio
-> scheitern standalone (fehlende `cudart64_12.dll` / `cublasLt64_12.dll` →
-> exit 127). Der nutzbare **Vulkan-Build** (GPU-Treiber direkt, keine CUDA-DLLs)
-> wurde nur für Modelle gemessen, die komplett in die **12 GB VRAM** der RTX
-> 3060 passen (9B + 8B, alle Quants). 14B (8–11 GB) passen knapp, 35B (19.7 GB)
-> nicht — diese wurden auf GPU **nicht** gemessen (Partial-Offload auf RAM wäre
-> uneinheitlich). Nachmessung für 14B/35B auf GPU steht aus.
+> **Warum fehlen 14B/35B in der GPU-Spalte? (VRAM / RAM Offload)**
 >
-> Fazit: Mit GPU ist der Agent **~4–5× schneller** (45 vs 10 tok/s). Ohne GPU
-> (Root-Server) läuft Ornith-9B Q4 immer noch flüssig mit ~10 tok/s.
+> `n_gpu_layers` steuert, wie viele Layer auf die GPU (VRAM) gehen; der Rest läuft auf
+> RAM (CPU). Ein Modell passt nur dann sauber in die GPU, wenn es komplett in den VRAM passt:
+> - **RTX 3060 = 12 GB VRAM.** 9B (5–7 GB) + 8B (4–8 GB) passen komplett → saubere Speedup-Zahlen (oben).
+> - **14B (8–11 GB)** passen *knapp* rein, sind aber nicht gemessen (Nachmessung offen).
+> - **35B Q4 = 19.7 GB > 12 GB VRAM** → passt NICHT. Nur ~6–7 GB der Gewichte finden in VRAM,
+>   der Rest (≈13 GB) auf RAM. Das ist **Partial-Offload**: GPU-Layer schnell, RAM-Layer langsam,
+>   dazu PCIe-Copy-Overhead (VRAM↔RAM) → effektiv **langsamer als reiner CPU-Run** (11.58 tok/s).
+>   Eine saubere 35B-GPU braucht **≥24 GB VRAM** (RTX 3090/4090/A5000) → dann ~30–45 tok/s.
+>
+> Fazit: Mit GPU ist der Agent **~4–6× schneller** (45 vs 10 tok/s) — aber nur für Modelle, die
+> komplett in den VRAM passen. 35B gehört auf RAM (oder ≥24 GB VRAM).
 
 ---
 
@@ -91,17 +95,21 @@ mcp:
   model: "models/Ornith-1.0-9B-GGUF/ornith-1.0-9b-Q4_K_M.gguf"
   api_key: ""               # leer = lokal, kein Cloud-Key nötig
   fallback_paid: false      # nie bezahlen, es sei denn du willst es explizit
+  llamacpp:
+    auto_start: true        # llama-server automatisch starten
+    port: 8081
+    n_gpu_layers: 0         # 0 = CPU/RAM; -1 oder 99 = alle Layer auf GPU (braucht VRAM)
 ```
 
-`provider: llamacpp` → der Code findet die `llama-server`-Binary via `FindLlamaCPP()` und startet sie selbst mit `--n-gpu-layers` aus der Config (GPU offload falls verfügbar).
+`provider: llamacpp` → der Code findet die `llama-server`-Binary via `FindLlamaCPP()` und startet sie selbst. `n_gpu_layers` steuert den VRAM-Offload (siehe oben).
 
 ---
 
 ## Reproduktion
 
 ```bash
-# CPU/RAM (Root-Server-Szenario)
-bash _t/bench.sh models/Ornith-1.0-9B-GGUF/ornith-1.0-9b-Q4_K_M.gguf 0
+# CPU/RAM (Root-Server-Szenario) — alle 17 Modelle
+bash _t/bench.sh models/<model>.gguf 0
 
 # GPU/VRAM (Vulkan-Build, RTX 3060) — nur VRAM-passende Modelle
 bash _t/gpu_bench.sh models/Ornith-1.0-9B-GGUF/ornith-1.0-9b-Q4_K_M.gguf
