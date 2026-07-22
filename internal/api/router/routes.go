@@ -2,6 +2,8 @@ package router
 
 import (
 	"context"
+	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -9,9 +11,11 @@ import (
 	"go-database/internal/api/middleware"
 	"go-database/internal/api/response"
 	"go-database/internal/auth"
+	"go-database/internal/config"
 	"go-database/internal/connection"
 	"go-database/internal/crypto"
 	"go-database/internal/internaldb"
+	mcp "go-database/internal/mcp"
 	"go-database/internal/llm"
 	"go-database/internal/scheduler"
 	"go-database/internal/transfer"
@@ -39,7 +43,7 @@ func dbAccessMW(store *internaldb.Store) gin.HandlerFunc {
 	})
 }
 
-func SetupRoutes(r *gin.Engine, store *internaldb.Store, connMgr *connection.Manager, jwt *auth.JWTService, apikeySvc *auth.APIKeyService, transferEngine transfer.TransferEngine, sched *scheduler.Scheduler, schedStore scheduler.SchedulerStore, cryptoSvc *crypto.Service) {
+func SetupRoutes(r *gin.Engine, cfg *config.Config, store *internaldb.Store, connMgr *connection.Manager, jwt *auth.JWTService, apikeySvc *auth.APIKeyService, transferEngine transfer.TransferEngine, sched *scheduler.Scheduler, schedStore scheduler.SchedulerStore, cryptoSvc *crypto.Service) {
 
 	r.POST("/api/v1/auth/login", middleware.LoginRateLimit(), handler.Login(store, jwt))
 	// SSH-style passwordless login: client signs a server nonce with its private key
@@ -263,12 +267,23 @@ func SetupRoutes(r *gin.Engine, store *internaldb.Store, connMgr *connection.Man
 	r.GET("/api/v1/models/local", handler.HandleLocalModels())
 	r.GET("/api/v1/models/remote", handler.HandleRemoteModels())
 
-	// AI Agent chat + SSE
+	// ── AI Agent chat + SSE (AUTH REQUIRED — was previously unauthenticated) ──
 	logFn := func(action, details string) {
 		_ = store.LogAudit(context.Background(), "system", action, details)
 	}
-	r.POST("/api/v1/agent/chat", handler.HandleAgentChat(logFn))
-	r.GET("/api/v1/agent/stream", handler.HandleAgentStream(logFn))
+	authAgent := authGroup.Group("")
+	authAgent.Use(permMW(store, auth.PermConnectionsList))
+	{
+		authAgent.POST("/agent/chat", handler.HandleAgentChat(logFn))
+		authAgent.GET("/agent/stream", handler.HandleAgentStream(logFn))
+	}
+
+	// ── MCP endpoint (AUTH REQUIRED, per-user db_access scope) ──
+	if cfg.MCP.Enabled {
+		authMCP := authGroup.Group("")
+		authMCP.Use(permMW(store, auth.PermConnectionsList))
+		authMCP.Any("/mcp", handler.HandleMCP(mcp.HTTPHandlerWithScope(mcp.APIKeyMiddleware(cfg.MCP.APIKey), nil)))
+	}
 
 	// AI Setup wizard
 	r.POST("/api/v1/setup/ai", handler.HandleAISetup())
@@ -290,4 +305,47 @@ func SetupRoutes(r *gin.Engine, store *internaldb.Store, connMgr *connection.Man
 	// Documentation server (renders docs/*.md as HTML)
 	r.GET("/docs", handler.HandleDocsRedirect)
 	r.GET("/docs/*slug", handler.HandleDocs)
+
+	// API index: list every registered route (so clients discover paths instead of guessing).
+	r.GET("/api/v1", func(c *gin.Context) {
+		apiIndex(c, r)
+	})
+
+	// 404 with suggestions: instead of a bare error, show similar paths.
+	r.NoRoute(func(c *gin.Context) {
+		suggestRoutes(c, r)
+	})
+}
+
+// apiIndex returns all registered routes grouped by method.
+func apiIndex(c *gin.Context, r *gin.Engine) {
+	byMethod := map[string][]string{}
+	for _, rt := range r.Routes() {
+		byMethod[rt.Method] = append(byMethod[rt.Method], rt.Path)
+	}
+	response.Success(c, gin.H{"routes": byMethod, "note": "prefix /api/v1 to paths; see /docs for details"})
+}
+
+// suggestRoutes returns a 404 with the closest matching paths instead of a bare error.
+func suggestRoutes(c *gin.Context, r *gin.Engine) {
+	reqPath := c.Request.URL.Path
+	req := c.Request.Method + " " + reqPath
+	var sugg []string
+	for _, rt := range r.Routes() {
+		p := rt.Method + " " + rt.Path
+		// ponytail: naive prefix/suffix match on the path segment; good enough for "did you mean"
+		if strings.HasPrefix(rt.Path, reqPath) || strings.HasPrefix(reqPath, rt.Path) ||
+			(strings.Contains(rt.Path, reqPath) && len(reqPath) > 3) {
+			sugg = append(sugg, p)
+		}
+	}
+	if len(sugg) > 8 {
+		sugg = sugg[:8]
+	}
+	c.JSON(http.StatusNotFound, gin.H{
+		"error":      "route not found",
+		"requested":  req,
+		"suggestion": sugg,
+		"hint":       "GET /api/v1 for the full route list",
+	})
 }
