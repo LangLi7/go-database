@@ -17,6 +17,8 @@ type APIKey struct {
 	Hash        string   `json:"-"`
 	Name        string   `json:"name"`
 	Permissions []string `json:"permissions"`
+	OwnerID     string   `json:"owner_id,omitempty"` // user who created the key (blank = system)
+	DBAccess    []string `json:"db_access,omitempty"` // connection IDs this key may access
 	CreatedAt   string   `json:"created_at"`
 	LastUsedAt  string   `json:"last_used_at,omitempty"`
 	ExpiresAt   string   `json:"expires_at,omitempty"`
@@ -41,10 +43,10 @@ func NewAPIKeyService(store KeyStore) *APIKeyService {
 }
 
 // Generate creates a new API key (prefix + raw) and stores the hash
-func (s *APIKeyService) Generate(ctx context.Context, name string, permissions []string) (string, *APIKey, error) {
+func (s *APIKeyService) Generate(ctx context.Context, name string, permissions []string, ownerID string, dbAccess []string) (string, *APIKey, error) {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
-		return "", nil, fmt.Errorf("apikey: rand: %w", err)
+		return "", nil, fmt.Errorf("apikey: *** %w", err)
 	}
 
 	rawKey := hex.EncodeToString(raw)
@@ -56,6 +58,8 @@ func (s *APIKeyService) Generate(ctx context.Context, name string, permissions [
 		Hash:        hash,
 		Name:        name,
 		Permissions: permissions,
+		OwnerID:     ownerID,
+		DBAccess:    dbAccess,
 	}
 
 	if err := s.store.SaveKey(ctx, key); err != nil {

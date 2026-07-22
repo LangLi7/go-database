@@ -31,13 +31,19 @@ func DBAccessMiddleware(loadRole RoleByName) gin.HandlerFunc {
 		extraPermSlice, _ := extraPerm.([]string)
 		extraDBAccessSlice, _ := extraDBAccess.([]string)
 
-		// Get role permissions and db_access
-		rolePerms := getRolePermissions(roleStr, c, loadRole)
-		roleDBAccess := getRoleDBAccess(roleStr, c, loadRole)
-
-		// Merge with user overrides
-		effectivePerms := auth.GetEffectivePerms(rolePerms, extraPermSlice)
-		effectiveDBAccess := auth.GetEffectiveDBAccess(roleDBAccess, extraDBAccessSlice)
+		// Resolve effective perms + db_access including parent-role inheritance.
+		loader := func(id string) (*auth.Role, bool) {
+			if loadRole == nil {
+				return nil, false
+			}
+			r := loadRole(c, id)
+			if r == nil {
+				return nil, false
+			}
+			return r, true
+		}
+		effectivePerms := auth.GetEffectivePerms(roleStr, loader, extraPermSlice)
+		effectiveDBAccess := auth.GetEffectiveDBAccess(roleStr, loader, extraDBAccessSlice)
 
 		// Store effective db_access in context for handlers that need it
 		c.Set("effective_db_access", effectiveDBAccess)

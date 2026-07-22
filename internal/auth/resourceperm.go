@@ -145,9 +145,38 @@ func CheckDBAccess(perms []string, dbAccess []string, connID string) bool {
 	return false
 }
 
-// GetEffectiveDBAccess merges role db_access with user extra_db_access.
-// Extra db_access with "-" prefix denies access.
-func GetEffectiveDBAccess(roleDBAccess, extraDBAccess []string) []string {
+// GetEffectiveDBAccess accumulates db_access up the role parent chain and
+// merges with the user's extra_db_access. Extra db_access with "-" prefix
+// denies access (always wins). parent roles' db_access are resolved via loadRole.
+func GetEffectiveDBAccess(roleName string, loadRole func(id string) (*Role, bool), extraDBAccess []string) []string {
+	// accumulate role db_access (child + parents)
+	var roleDBAccess []string
+	var walk func(id string)
+	walk = func(id string) {
+		var r *Role
+		if loadRole != nil {
+			if loaded, ok := loadRole(id); ok {
+				r = loaded
+			}
+		}
+		if r == nil {
+			for _, b := range DefaultRoles() {
+				if b.ID == id {
+					r = &b
+					break
+				}
+			}
+		}
+		if r == nil {
+			return
+		}
+		roleDBAccess = append(roleDBAccess, r.DBAccess...)
+		if r.Parent != "" {
+			walk(r.Parent)
+		}
+	}
+	walk(roleName)
+
 	seen := make(map[string]bool)
 	var result []string
 

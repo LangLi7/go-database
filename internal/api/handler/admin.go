@@ -273,14 +273,23 @@ func GetUserPermissions(store *internaldb.Store) gin.HandlerFunc {
 			return
 		}
 
-		effective := auth.GetEffectivePerms(role.Permissions, user.ExtraPerm)
+		// effective perms including parent-role inheritance
+		loader := func(id string) (*auth.Role, bool) {
+			r, err := store.GetRole(c.Request.Context(), id)
+			if err != nil {
+				return nil, false
+			}
+			return r, true
+		}
+		effective := auth.GetEffectivePerms(user.Role, loader, user.ExtraPerm)
+		dbAccess := auth.GetEffectiveDBAccess(user.Role, loader, user.ExtraDBAccess)
 		response.Success(c, gin.H{
 			"user_id":     user.ID,
 			"role":        user.Role,
 			"role_perms":  role.Permissions,
 			"extra_perms": user.ExtraPerm,
 			"effective":   effective,
-			"db_access":   append(role.DBAccess, user.ExtraDBAccess...),
+			"db_access":   append(dbAccess, user.ExtraDBAccess...),
 		})
 	}
 }

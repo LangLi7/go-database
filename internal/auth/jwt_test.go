@@ -92,7 +92,7 @@ func TestAPIKeyService(t *testing.T) {
 	svc := NewAPIKeyService(store)
 
 	ctx := context.Background()
-	key, stored, err := svc.Generate(ctx, "test-key", []string{"connections:list"})
+	key, stored, err := svc.Generate(ctx, "test-key", []string{"connections:list"}, "", nil)
 	if err != nil {
 		t.Fatalf("failed to generate key: %v", err)
 	}

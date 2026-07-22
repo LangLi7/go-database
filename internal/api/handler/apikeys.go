@@ -11,6 +11,7 @@ import (
 type createAPIKeyRequest struct {
 	Name        string   `json:"name" binding:"required"`
 	Permissions []string `json:"permissions"`
+	DBAccess    []string `json:"db_access"` // connection IDs this key may access
 }
 
 // ListAPIKeys returns all API keys (without hashes)
@@ -27,6 +28,8 @@ func ListAPIKeys(store *internaldb.Store) gin.HandlerFunc {
 			Prefix      string   `json:"prefix"`
 			Name        string   `json:"name"`
 			Permissions []string `json:"permissions"`
+			OwnerID     string   `json:"owner_id,omitempty"`
+			DBAccess    []string `json:"db_access,omitempty"`
 			CreatedAt   string   `json:"created_at"`
 		}
 		result := make([]safeKey, len(keys))
@@ -35,6 +38,8 @@ func ListAPIKeys(store *internaldb.Store) gin.HandlerFunc {
 				Prefix:      k.Prefix,
 				Name:        k.Name,
 				Permissions: k.Permissions,
+				OwnerID:     k.OwnerID,
+				DBAccess:    k.DBAccess,
 				CreatedAt:   k.CreatedAt,
 			}
 		}
@@ -52,8 +57,12 @@ func CreateAPIKey(store *internaldb.Store) gin.HandlerFunc {
 			return
 		}
 
+		// key belongs to the authenticated user (multi-tenant)
+		ownerID, _ := c.Get("user_id")
+		owner, _ := ownerID.(string)
+
 		svc := auth.NewAPIKeyService(store)
-		rawKey, stored, err := svc.Generate(c.Request.Context(), req.Name, req.Permissions)
+		rawKey, stored, err := svc.Generate(c.Request.Context(), req.Name, req.Permissions, owner, req.DBAccess)
 		if err != nil {
 			response.InternalError(c, "failed to generate API key")
 			return
@@ -64,6 +73,8 @@ func CreateAPIKey(store *internaldb.Store) gin.HandlerFunc {
 			"prefix":      stored.Prefix,
 			"name":        stored.Name,
 			"permissions": stored.Permissions,
+			"owner_id":    stored.OwnerID,
+			"db_access":   stored.DBAccess,
 			"formatted":   auth.FormatKey(rawKey),
 		})
 	}

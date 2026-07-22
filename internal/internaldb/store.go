@@ -334,28 +334,29 @@ func (s *Store) DeletePasskey(ctx context.Context, id string) error {
 
 func (s *Store) SaveRole(ctx context.Context, r auth.Role) error {
 	_, err := s.exec(ctx,
-		`INSERT OR REPLACE INTO roles (id, name, permissions, db_access)
-		 VALUES (?, ?, ?, ?)`,
-		r.ID, r.Name, joinSlice(r.Permissions), joinSlice(r.DBAccess))
+		`INSERT OR REPLACE INTO roles (id, name, permissions, db_access, parent)
+		 VALUES (?, ?, ?, ?, ?)`,
+		r.ID, r.Name, joinSlice(r.Permissions), joinSlice(r.DBAccess), r.Parent)
 	return err
 }
 
 func (s *Store) GetRole(ctx context.Context, id string) (*auth.Role, error) {
 	row := s.queryRow(ctx,
-		`SELECT id, name, COALESCE(permissions,''), COALESCE(db_access,'') FROM roles WHERE id = ?`, id)
+		`SELECT id, name, COALESCE(permissions,''), COALESCE(db_access,''), COALESCE(parent,'') FROM roles WHERE id = ?`, id)
 	var r auth.Role
-	var perms, dbAccess string
-	if err := row.Scan(&r.ID, &r.Name, &perms, &dbAccess); err != nil {
+	var perms, dbAccess, parent string
+	if err := row.Scan(&r.ID, &r.Name, &perms, &dbAccess, &parent); err != nil {
 		return nil, fmt.Errorf("internaldb: role not found: %w", err)
 	}
 	r.Permissions = splitSlice(perms)
 	r.DBAccess = splitSlice(dbAccess)
+	r.Parent = parent
 	return &r, nil
 }
 
 func (s *Store) ListRoles(ctx context.Context) ([]auth.Role, error) {
 	rows, err := s.query(ctx,
-		`SELECT id, name, COALESCE(permissions,''), COALESCE(db_access,'') FROM roles ORDER BY name`)
+		`SELECT id, name, COALESCE(permissions,''), COALESCE(db_access,''), COALESCE(parent,'') FROM roles ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -364,15 +365,16 @@ func (s *Store) ListRoles(ctx context.Context) ([]auth.Role, error) {
 	var roles []auth.Role
 	for rows.Next() {
 		var r auth.Role
-		var perms, dbAccess string
-		if err := rows.Scan(&r.ID, &r.Name, &perms, &dbAccess); err != nil {
+		var perms, dbAccess, parent string
+		if err := rows.Scan(&r.ID, &r.Name, &perms, &dbAccess, &parent); err != nil {
 			continue
 		}
 		r.Permissions = splitSlice(perms)
 		r.DBAccess = splitSlice(dbAccess)
+		r.Parent = parent
 		roles = append(roles, r)
 	}
-	return roles, nil
+	return roles, rows.Err()
 }
 
 func (s *Store) DeleteRole(ctx context.Context, id string) error {
@@ -384,28 +386,30 @@ func (s *Store) DeleteRole(ctx context.Context, id string) error {
 
 func (s *Store) SaveKey(ctx context.Context, k auth.APIKey) error {
 	_, err := s.exec(ctx,
-		`INSERT OR REPLACE INTO api_keys (prefix, hash, name, permissions, created_at)
-		 VALUES (?, ?, ?, ?, ?)`,
-		k.Prefix, k.Hash, k.Name, joinSlice(k.Permissions), k.CreatedAt)
+		`INSERT OR REPLACE INTO api_keys (prefix, hash, name, permissions, owner_id, db_access, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		k.Prefix, k.Hash, k.Name, joinSlice(k.Permissions), k.OwnerID, joinSlice(k.DBAccess), k.CreatedAt)
 	return err
 }
 
 func (s *Store) GetKey(ctx context.Context, prefix string) (*auth.APIKey, error) {
 	row := s.queryRow(ctx,
-		`SELECT prefix, hash, name, COALESCE(permissions,''), COALESCE(created_at,'') FROM api_keys WHERE prefix = ?`, prefix)
+		`SELECT prefix, hash, name, COALESCE(permissions,''), COALESCE(owner_id,''), COALESCE(db_access,''), COALESCE(created_at,'') FROM api_keys WHERE prefix = ?`, prefix)
 	var k auth.APIKey
-	var perms, createdAt string
-	if err := row.Scan(&k.Prefix, &k.Hash, &k.Name, &perms, &createdAt); err != nil {
+	var perms, ownerID, dbAccess, createdAt string
+	if err := row.Scan(&k.Prefix, &k.Hash, &k.Name, &perms, &ownerID, &dbAccess, &createdAt); err != nil {
 		return nil, fmt.Errorf("internaldb: key not found: %w", err)
 	}
 	k.Permissions = splitSlice(perms)
+	k.OwnerID = ownerID
+	k.DBAccess = splitSlice(dbAccess)
 	k.CreatedAt = createdAt
 	return &k, nil
 }
 
 func (s *Store) ListKeys(ctx context.Context) ([]auth.APIKey, error) {
 	rows, err := s.query(ctx,
-		`SELECT prefix, name, COALESCE(permissions,''), COALESCE(created_at,'') FROM api_keys ORDER BY created_at DESC`)
+		`SELECT prefix, name, COALESCE(permissions,''), COALESCE(owner_id,''), COALESCE(db_access,''), COALESCE(created_at,'') FROM api_keys ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -414,11 +418,13 @@ func (s *Store) ListKeys(ctx context.Context) ([]auth.APIKey, error) {
 	var keys []auth.APIKey
 	for rows.Next() {
 		var k auth.APIKey
-		var perms, createdAt string
-		if err := rows.Scan(&k.Prefix, &k.Name, &perms, &createdAt); err != nil {
+		var perms, ownerID, dbAccess, createdAt string
+		if err := rows.Scan(&k.Prefix, &k.Name, &perms, &ownerID, &dbAccess, &createdAt); err != nil {
 			continue
 		}
 		k.Permissions = splitSlice(perms)
+		k.OwnerID = ownerID
+		k.DBAccess = splitSlice(dbAccess)
 		k.CreatedAt = createdAt
 		keys = append(keys, k)
 	}
@@ -543,7 +549,8 @@ func (s *Store) migrate(ctx context.Context) error {
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
 			permissions TEXT DEFAULT '',
-			db_access TEXT DEFAULT ''
+			db_access TEXT DEFAULT '',
+			parent TEXT DEFAULT ''
 		)`,
 		`CREATE TABLE IF NOT EXISTS api_keys (
 			prefix TEXT PRIMARY KEY,
@@ -589,19 +596,29 @@ func (s *Store) migrate(ctx context.Context) error {
 
 	// Migrate v2: add email + public_key columns if missing (existing databases)
 	if s.driver != "postgres" {
-		if _, err := s.exec(ctx, `ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''`); err != nil {
-			// Column may already exist — ignore error
-		}
-		if _, err := s.exec(ctx, `ALTER TABLE users ADD COLUMN public_key TEXT DEFAULT ''`); err != nil {
-			// Column may already exist — ignore error
+		for _, ddl := range []string{
+			`ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''`,
+			`ALTER TABLE users ADD COLUMN public_key TEXT DEFAULT ''`,
+			`ALTER TABLE roles ADD COLUMN parent TEXT DEFAULT ''`,
+			`ALTER TABLE api_keys ADD COLUMN owner_id TEXT DEFAULT ''`,
+			`ALTER TABLE api_keys ADD COLUMN db_access TEXT DEFAULT ''`,
+		} {
+			if _, err := s.exec(ctx, ddl); err != nil {
+				// Column may already exist — ignore error
+			}
 		}
 	} else {
 		// PG: ADD COLUMN IF NOT EXISTS
-		if _, err := s.exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT DEFAULT ''`); err != nil {
-			slog.Warn("pg add email column", "error", err)
-		}
-		if _, err := s.exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS public_key TEXT DEFAULT ''`); err != nil {
-			slog.Warn("pg add public_key column", "error", err)
+		for _, ddl := range []string{
+			`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT DEFAULT ''`,
+			`ALTER TABLE users ADD COLUMN IF NOT EXISTS public_key TEXT DEFAULT ''`,
+			`ALTER TABLE roles ADD COLUMN IF NOT EXISTS parent TEXT DEFAULT ''`,
+			`ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS owner_id TEXT DEFAULT ''`,
+			`ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS db_access TEXT DEFAULT ''`,
+		} {
+			if _, err := s.exec(ctx, ddl); err != nil {
+				slog.Warn("pg migration column", "error", err)
+			}
 		}
 	}
 

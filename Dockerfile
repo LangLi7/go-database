@@ -1,5 +1,5 @@
 # Build Go server (API-only, no embedded frontend)
-FROM golang:1.26-alpine AS server-builder
+FROM golang:1.25-alpine AS server-builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download

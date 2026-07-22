@@ -24,10 +24,12 @@ const (
 	PermAdmin             = "*"
 )
 
-// Role defines a named set of permissions
+// Role defines a named set of permissions. A role may inherit from a parent
+// role (Luckperms-style) — effective perms/db_access accumulate up the chain.
 type Role struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
+	Parent      string   `json:"parent,omitempty"` // parent role ID to inherit from
 	Permissions []string `json:"permissions"`
 	DBAccess    []string `json:"db_access"` // connection IDs this role can access
 }
@@ -71,23 +73,63 @@ func DefaultRoles() []Role {
 	}
 }
 
-// RolePermissions returns the effective permissions for a user
-func GetEffectivePerms(rolePerms []string, extraPerms []string) []string {
-	// If role has admin (*), user gets everything
-	for _, p := range rolePerms {
-		if p == PermAdmin {
-			return []string{PermAdmin}
-		}
-	}
-
-	// Combine role permissions + user-specific overrides
+// GetEffectivePerms returns the effective permissions for a user given a role
+// name, an optional role loader (for parent inheritance), and extra perms.
+// Parent roles' permissions accumulate (Luckperms-style). A role with admin (*)
+// grants everything.
+func GetEffectivePerms(roleName string, loadRole func(id string) (*Role, bool), extraPerms []string) []string {
 	seen := make(map[string]bool)
 	result := make([]string, 0)
-	for _, p := range append(rolePerms, extraPerms...) {
+
+	var walk func(id string)
+	walk = func(id string) {
+		var r *Role
+		if loadRole != nil {
+			if loaded, ok := loadRole(id); ok {
+				r = loaded
+			}
+		}
+		if r == nil {
+			// built-in?
+			for _, b := range DefaultRoles() {
+				if b.ID == id {
+					r = &b
+					break
+				}
+			}
+		}
+		if r == nil {
+			return
+		}
+		// admin short-circuit
+		for _, p := range r.Permissions {
+			if p == PermAdmin {
+				result = []string{PermAdmin}
+				return
+			}
+		}
+		// prepend so parent perms come first; avoid dupes
+		for _, p := range r.Permissions {
+			if !seen[p] {
+				seen[p] = true
+				result = append(result, p)
+			}
+		}
+		if r.Parent != "" {
+			walk(r.Parent)
+		}
+	}
+	walk(roleName)
+
+	// merge extra perms last
+	for _, p := range extraPerms {
 		if !seen[p] {
 			seen[p] = true
 			result = append(result, p)
 		}
+	}
+	if len(result) == 0 {
+		return []string{}
 	}
 	return result
 }

@@ -62,10 +62,11 @@ func AuthMiddleware(cfg AuthConfig) gin.HandlerFunc {
 		if cfg.APIKey != nil {
 			key, apiErr := cfg.APIKey.Validate(c.Request.Context(), tokenStr)
 			if apiErr == nil {
-				c.Set("user_id", "apikey:"+key.Prefix)
-				c.Set("username", "apikey:"+key.Name)
+				c.Set("user_id", "apikey:***")
+				c.Set("username", "apikey:***")
 				c.Set("role", "apikey")
 				c.Set("extra_perm", key.Permissions)
+				c.Set("db_access", key.DBAccess) // key-scoped DB isolation
 				c.Next()
 				return
 			}
@@ -94,8 +95,18 @@ func PermissionMiddleware(requiredPerm string, loadRole RoleByName) gin.HandlerF
 		}
 		extraPermSlice, _ := extraPerm.([]string)
 
-		rolePerms := getRolePermissions(roleStr, c, loadRole)
-		effective := auth.GetEffectivePerms(rolePerms, extraPermSlice)
+		// Resolve effective perms including parent-role inheritance.
+		loader := func(id string) (*auth.Role, bool) {
+			if loadRole == nil {
+				return nil, false
+			}
+			r := loadRole(c, id)
+			if r == nil {
+				return nil, false
+			}
+			return r, true
+		}
+		effective := auth.GetEffectivePerms(roleStr, loader, extraPermSlice)
 
 		// Store effective perms in context for downstream use (Guard, etc.)
 		c.Set("effective_perm", effective)
