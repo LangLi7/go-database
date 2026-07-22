@@ -50,9 +50,13 @@ func (s *LlamaCppServer) Start(ctx context.Context) error {
 	if bin == "" {
 		return fmt.Errorf("llamacpp: llama-server not found in PATH or LM Studio extensions; install llama.cpp or set it in PATH")
 	}
+	// llama-server.exe is a Windows binary and cannot resolve MSYS-style paths
+	// (/c/Users/...); convert to a Windows path (C:/Users/...) it can open.
+	bin = normalizePath(bin)
+	modelPath := normalizePath(s.cfg.ModelPath)
 
 	args := []string{
-		"--model", s.cfg.ModelPath,
+		"--model", modelPath,
 		"--port", fmt.Sprintf("%d", s.cfg.Port),
 		"--host", "127.0.0.1",
 		"--ctx-size", "4096",
@@ -139,21 +143,30 @@ func FindLlamaCPP() string {
 	}
 	for _, p := range patterns {
 		matches, _ := filepath.Glob(p)
-		// filter out cuda for the first pass (avx2 glob can match cuda-avx2 names)
-		if strings.Contains(p, "avx2") {
-			var nonCuda []string
-			for _, m := range matches {
-				if !strings.Contains(strings.ToLower(m), "cuda") {
-					nonCuda = append(nonCuda, m)
-				}
+		// CUDA builds need the CUDA runtime DLLs on PATH (only inside LM Studio),
+		// so they fail standalone with exit 127. Always drop cuda from candidates.
+		var nonCuda []string
+		for _, m := range matches {
+			if !strings.Contains(strings.ToLower(m), "cuda") {
+				nonCuda = append(nonCuda, m)
 			}
-			matches = nonCuda
 		}
-		if len(matches) > 0 {
-			return matches[len(matches)-1] // newest version (lexical sort)
+		if len(nonCuda) > 0 {
+			return nonCuda[len(nonCuda)-1] // newest non-CUDA version
 		}
 	}
 	return ""
+}
+
+// normalizePath converts an MSYS/Cygwin-style path (/c/Users/...) to a Windows
+// path (C:/Users/...) so the llama-server.exe binary (a native Windows process)
+// can resolve model/binary paths. On non-Windows it's a no-op.
+// ponytail: only handles the /c/... → C:/... case; WSL /mnt/c left as-is.
+func normalizePath(p string) string {
+	if len(p) >= 3 && p[0] == '/' && p[2] == '/' && p[1] >= 'a' && p[1] <= 'z' {
+		return strings.ToUpper(string(p[1])) + ":" + p[2:]
+	}
+	return p
 }
 
 // ResolveModelPath returns the full path for a model key.

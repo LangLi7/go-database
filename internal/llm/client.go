@@ -386,7 +386,12 @@ func NewClient(provider, apiKey, model, lmstudioURL string, allowPaid bool) Clie
 		if portURL == "" {
 			portURL = "http://localhost:8081"
 		}
-		return NewLMStudio(portURL, model)
+		local := NewLMStudio(portURL, model)
+		if allowPaid && apiKey != "" {
+			// local first, cloud (OpenRouter, parallel-native) on failure/timeout
+			return NewFallbackClient(local, NewOpenRouter(apiKey, model, allowPaid), 20*time.Second)
+		}
+		return local
 	default:
 		return NewOpenRouter(apiKey, model, allowPaid)
 	}

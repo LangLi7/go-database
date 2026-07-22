@@ -23,6 +23,7 @@ import (
 	"go-database/internal/internaldb"
 	"go-database/internal/llm"
 	mcp "go-database/internal/mcp"
+	"go-database/internal/executor"
 	"go-database/internal/provisioner"
 	"go-database/internal/scheduler"
 	"go-database/internal/transfer"
@@ -119,12 +120,15 @@ func main() {
 	cryptoSvc := crypto.NewService(cryptoStore)
 	slog.Info("encryption service ready", "algorithms", "aes-256-gcm, aes-256-cbc+hmac, chacha20-poly1305, rsa-oaep-4096, x25519-hybrid")
 
+	// ---- Guard wraps connMgr so Agent + MCP pass through the risk guard ----
+	guard := executor.NewGuardGate(connMgr)
+
 	// ---- MCP Server (config-gesteuert) ----
 	if cfg.MCP.Enabled {
 		if err := mcp.ValidateMCPConfig(cfg.MCP.Provider, cfg.MCP.Model, cfg.MCP.APIKey); err != nil {
 			slog.Error("invalid mcp config", "error", err)
 		} else {
-			mcp.SetDBGate(connMgr)
+			mcp.SetDBGate(guard)
 			mcp.SetNL2SQLConfig(cfg.MCP.Provider, cfg.MCP.Model, cfg.MCP.APIKey, "", cfg.MCP.FallbackPaid)
 			mcpHandler := mcp.HTTPHandler(mcp.APIKeyMiddleware(cfg.MCP.APIKey))
 			r.Any(cfg.MCP.Endpoint, gin.WrapH(mcpHandler))
@@ -154,7 +158,7 @@ func main() {
 	}
 	llmClient := llm.NewClient(cfg.MCP.Provider, cfg.MCP.APIKey, cfg.MCP.Model, llamaURL, cfg.MCP.FallbackPaid)
 	auditFn := func(action, details string) { _ = store.LogAudit(ctx, "system", action, details) }
-	agent.InitAgent(llmClient, connMgr, auditFn)
+	agent.InitAgent(llmClient, guard, auditFn)
 	handler.SetAgentLLM(llmClient)
 	slog.Info("ai agent ready", "provider", cfg.MCP.Provider)
 

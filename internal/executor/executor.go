@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"go-database/internal/connection"
 	"go-database/internal/plugin"
 	"go-database/internal/suggest"
 )
@@ -30,11 +29,11 @@ type ExecutionResult struct {
 }
 
 type Executor struct {
-	mgr  *connection.Manager
+	mgr Manager
 	risk *suggest.RiskEvaluator
 }
 
-func New(mgr *connection.Manager) *Executor {
+func New(mgr Manager) *Executor {
 	return &Executor{mgr: mgr, risk: suggest.NewRiskEvaluator()}
 }
 
