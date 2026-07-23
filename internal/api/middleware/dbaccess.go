@@ -1,6 +1,9 @@
 package middleware
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 
 	"go-database/internal/api/response"
@@ -47,6 +50,10 @@ func DBAccessMiddleware(loadRole RoleByName) gin.HandlerFunc {
 
 		// Store effective db_access in context for handlers that need it
 		c.Set("effective_db_access", effectiveDBAccess)
+		// Propagate to downstream http.Handler (MCP scope func reads these
+		// headers, since http.Request has no gin context).
+		c.Request.Header.Set("X-Effective-DBAccess", strings.Join(effectiveDBAccess, ","))
+		c.Request.Header.Set("X-Is-Admin", strconv.FormatBool(roleStr == "admin"))
 
 		if !auth.CheckDBAccess(effectivePerms, effectiveDBAccess, connID) {
 			response.Forbidden(c, "no access to this connection")

@@ -282,7 +282,21 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, store *internaldb.Store, con
 	if cfg.MCP.Enabled {
 		authMCP := authGroup.Group("")
 		authMCP.Use(permMW(store, auth.PermConnectionsList))
-		authMCP.Any("/mcp", handler.HandleMCP(mcp.HTTPHandlerWithScope(mcp.APIKeyMiddleware(cfg.MCP.APIKey), nil)))
+		// scope extracts per-caller db_access + admin flag from headers set by
+		// DBAccessMiddleware, so MCP tools only see scoped connections.
+		scope := func(r *http.Request) ([]string, bool) {
+			var ids []string
+			if v := r.Header.Get("X-Effective-DBAccess"); v != "" {
+				for _, s := range strings.Split(v, ",") {
+					if s = strings.TrimSpace(s); s != "" {
+						ids = append(ids, s)
+					}
+				}
+			}
+			isAdmin := r.Header.Get("X-Is-Admin") == "true"
+			return ids, isAdmin
+		}
+		authMCP.Any("/mcp", handler.HandleMCP(mcp.HTTPHandlerWithScope(mcp.APIKeyMiddleware(cfg.MCP.APIKey), scope)))
 	}
 
 	// AI Setup wizard

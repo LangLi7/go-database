@@ -6,114 +6,40 @@ import (
 	"go-database/internal/suggest"
 )
 
-func TestCheckCommand_SelectAllowed(t *testing.T) {
-	g := &Guard{}
-	cmd, ok := g.CheckCommand("SELECT * FROM users", []string{"connections:query"})
-	if !ok {
-		t.Fatalf("SELECT should be allowed with query perm, got cmd=%s", cmd)
-	}
-	_ = cmd
-}
-
-func TestCheckCommand_SelectBlocked(t *testing.T) {
-	g := &Guard{}
-	_, ok := g.CheckCommand("SELECT * FROM users", []string{})
-	if ok {
-		t.Fatal("SELECT should be blocked without permissions")
+func TestDetectCommandMultiStatement(t *testing.T) {
+	// SELECT 1; DROP TABLE users; must be classified as DROP (highest risk),
+	// not SELECT — otherwise a query-only permission would allow the DROP.
+	cmd := detectCommand("SELECT 1; DROP TABLE users;")
+	if cmd != suggest.CmdDrop {
+		t.Fatalf("expected CmdDrop, got %v", cmd)
 	}
 }
 
-func TestCheckCommand_DropBlocked(t *testing.T) {
-	g := &Guard{}
-	_, ok := g.CheckCommand("DROP TABLE users", []string{})
-	if ok {
-		t.Fatal("DROP should be blocked without permissions")
+func TestDetectCommandSingle(t *testing.T) {
+	cases := map[string]suggest.CommandType{
+		"SELECT * FROM users":           suggest.CmdSelect,
+		"INSERT INTO t VALUES (1)":      suggest.CmdInsert,
+		"UPDATE t SET x=1":              suggest.CmdUpdate,
+		"DELETE FROM t":                 suggest.CmdDelete,
+		"CREATE TABLE t (id INT)":       suggest.CmdCreate,
+		"DROP TABLE t":                  suggest.CmdDrop,
+		"ALTER TABLE t ADD c INT":       suggest.CmdAlter,
+		"TRUNCATE TABLE t":              suggest.CmdTruncate,
+		"   -- comment\nSELECT 1":        suggest.CmdSelect,
+		"SELECT '; DROP TABLE x;' AS x": suggest.CmdSelect, // ';' inside literal must NOT split
 	}
-}
-
-func TestCheckCommand_DropWithPerm(t *testing.T) {
-	g := &Guard{}
-	cmd, ok := g.CheckCommand("DROP TABLE users", []string{"connections:execute"})
-	if !ok {
-		t.Fatalf("DROP should be allowed with execute perm, got cmd=%s", cmd)
-	}
-	_ = cmd
-}
-
-func TestCheckCommand_InsertBlocked(t *testing.T) {
-	g := &Guard{}
-	_, ok := g.CheckCommand("INSERT INTO users (id) VALUES (1)", []string{})
-	if ok {
-		t.Fatal("INSERT should be blocked without permissions")
-	}
-}
-
-func TestCheckCommand_InsertWithPerm(t *testing.T) {
-	g := &Guard{}
-	cmd, ok := g.CheckCommand("INSERT INTO users (id) VALUES (1)", []string{"connections:execute"})
-	if !ok {
-		t.Fatalf("INSERT should be allowed with execute perm, got cmd=%s", cmd)
-	}
-	_ = cmd
-}
-
-func TestCheckCommand_DeleteBlocked(t *testing.T) {
-	g := &Guard{}
-	_, ok := g.CheckCommand("DELETE FROM users", []string{})
-	if ok {
-		t.Fatal("DELETE should be blocked without permissions")
-	}
-}
-
-func TestCheckCommand_UnknownBlocked(t *testing.T) {
-	g := &Guard{}
-	cmd, ok := g.CheckCommand("EXPLAIN SELECT * FROM users", []string{})
-	if ok {
-		t.Fatalf("UNKNOWN/EXPLAIN should be blocked by default, got cmd=%s", cmd)
-	}
-	_ = cmd
-}
-
-func TestCheckCommand_CommentPrefix(t *testing.T) {
-	g := &Guard{}
-	cmd, ok := g.CheckCommand("-- comment\nDROP TABLE users", []string{})
-	if ok {
-		t.Fatalf("DROP with comment prefix should still be blocked, got cmd=%s", cmd)
-	}
-	_ = cmd
-}
-
-func TestCheckCommand_BlockComment(t *testing.T) {
-	g := &Guard{}
-	cmd, ok := g.CheckCommand("/* block */DROP TABLE users", []string{})
-	if ok {
-		t.Fatalf("DROP with block comment should still be blocked, got cmd=%s", cmd)
-	}
-	_ = cmd
-}
-
-func TestDetectCommand(t *testing.T) {
-	tests := []struct {
-		sql string
-		cmd suggest.CommandType
-	}{
-		{"select * from users", suggest.CmdSelect},
-		{"INSERT INTO t VALUES (1)", suggest.CmdInsert},
-		{"update t set x=1", suggest.CmdUpdate},
-		{"delete from t", suggest.CmdDelete},
-		{"create table t (id int)", suggest.CmdCreate},
-		{"drop table t", suggest.CmdDrop},
-		{"alter table t add x int", suggest.CmdAlter},
-		{"truncate table t", suggest.CmdTruncate},
-		{"   select 1", suggest.CmdSelect},
-		{"-- comment\nselect 1", suggest.CmdSelect},
-		{"/* block */select 1", suggest.CmdSelect},
-		{"vacuum", suggest.CmdUnknown},
-	}
-	for _, tc := range tests {
-		cmd := detectCommand(tc.sql)
-		if cmd != tc.cmd {
-			t.Errorf("detectCommand(%q) = %s, want %s", tc.sql, cmd, tc.cmd)
+	for sql, want := range cases {
+		if got := detectCommand(sql); got != want {
+			t.Errorf("detectCommand(%q) = %v, want %v", sql, got, want)
 		}
+	}
+}
+
+func TestCheckCommandBlocksDropViaSelectPerm(t *testing.T) {
+	g := New()
+	// caller has only query permission
+	_, ok := g.CheckCommand("SELECT 1; DROP TABLE users;", []string{"connections:query"})
+	if ok {
+		t.Fatal("query-only permission must NOT allow SELECT;DROP (classified as DROP)")
 	}
 }

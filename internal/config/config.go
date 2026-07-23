@@ -193,7 +193,7 @@ func (c *Config) setDefaults() {
 		c.Server.BaseURL = fmt.Sprintf("http://%s:%d", c.Server.Host, c.Server.Port)
 	}
 	if c.Server.CORSOrigin == "" {
-		c.Server.CORSOrigin = "*" // Allow all origins in dev; restrict in production
+		c.Server.CORSOrigin = "" // strict: no wildcard. Set cors_origin explicitly for browser use.
 	}
 	if c.Auth.TokenDuration == 0 {
 		c.Auth.TokenDuration = 60 // 1 hour
