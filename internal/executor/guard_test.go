@@ -25,9 +25,9 @@ func (f *fakeMgr) Execute(ctx context.Context, id, sql string) (*plugin.Result, 
 	f.execCalled = true
 	return &plugin.Result{RowsAffected: 0}, nil
 }
-func (f *fakeMgr) Tables(ctx context.Context, id string) ([]string, error) { return nil, nil }
+func (f *fakeMgr) Tables(ctx context.Context, id string) ([]string, error)       { return nil, nil }
 func (f *fakeMgr) Schema(ctx context.Context, id string) (*plugin.Schema, error) { return nil, nil }
-func (f *fakeMgr) Databases(ctx context.Context, id string) ([]string, error) { return nil, nil }
+func (f *fakeMgr) Databases(ctx context.Context, id string) ([]string, error)    { return nil, nil }
 func (f *fakeMgr) ListVisible(userID string, dbAccess []string, isAdmin bool) []connection.Summary {
 	return nil
 }

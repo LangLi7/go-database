@@ -17,7 +17,7 @@ type APIKey struct {
 	Hash        string   `json:"-"`
 	Name        string   `json:"name"`
 	Permissions []string `json:"permissions"`
-	OwnerID     string   `json:"owner_id,omitempty"` // user who created the key (blank = system)
+	OwnerID     string   `json:"owner_id,omitempty"`  // user who created the key (blank = system)
 	DBAccess    []string `json:"db_access,omitempty"` // connection IDs this key may access
 	CreatedAt   string   `json:"created_at"`
 	LastUsedAt  string   `json:"last_used_at,omitempty"`

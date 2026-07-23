@@ -117,3 +117,88 @@ bash _t/gpu_bench.sh models/Ornith-1.0-9B-GGUF/ornith-1.0-9b-Q4_K_M.gguf
 # Agent NL->SQL Task (läuft gegen Server auf :8080, Admin via SSH-pubkey)
 bash _t/agent_nl2sql_test.sh
 ```
+
+---
+
+## Docker: lokaler Modell-Start + Offload (Update 2026-07-22)
+
+**Status:** ✅ implementiert. Das Docker-Image `go-database:llamacpp` baut `llama-server`
+aus Source und startet ihn per `auto_start` selbst — keine externe Binärdatei nötig.
+
+### Root-Cause-Fix (wichtig)
+Erstbuild nutzte llama.cpp-Tag `b6407` (2024) → Modell-Laden scheiterte mit
+`unknown model architecture: 'qwen35'` (Ornith-9B / Qwen3.5 nicht bekannt).
+**Fix:** `Dockerfile` baut jetzt aus `master` (llama.cpp `cf51256`). Verifiziert:
+`model loaded` + `listening on http://127.0.0.1:8081` + `/health → {"status":"ok"}`
+für Ornith-1.0-9B Q4_K_M im Container.
+
+### Offload (RAM ↔ VRAM) im Container
+`n_gpu_layers` steuert die Verteilung (genau wie lokal):
+- `0` → alles CPU/RAM
+- `99` (oder `-1`) → alle Layer VRAM
+- `20/40/60` → Partial-Offload (große Modelle auf kleiner GPU)
+
+Über Compose (siehe `docker-compose.yml`):
+```bash
+docker compose up                       # llamacpp auto-start, CPU/RAM
+GODB_MCP_LLAMACPP_NGPU=99 docker compose up   # GPU-Offload (braucht NVIDIA-Docker für VRAM)
+```
+
+### Volume-Mount-Hinweis (Windows/Docker Desktop)
+Der `models/`-Mount braucht den **Windows-Pfad**, nicht den MSYS-Pfad:
+```bash
+# FALSCH (leeres Volume, Modell nicht gefunden):
+docker run -v "$(pwd)/models:/app/models" ...
+# RICHTIG:
+docker run -v "H:\Projekt\Programmieren\go_database\models:/app/models:ro" ...
+```
+Ohne korrekten Mount → llama-server findet kein Modell → `timeout after 10m0s`.
+
+### GPU im Container
+CPU-Offload läuft out-of-the-box. VRAM-Offload braucht NVIDIA Container Toolkit
+(`--gpus all` bzw. `deploy.resources` in compose, Template ist auskommentiert).
+Auf Docker Desktop (Windows) ohne GPU → CPU/RAM automatisch.
+
+---
+
+## Cookbook-Recipes (System-Check + Benchmark)
+
+Im `recipe`-System (`internal/recipe`) sind jetzt vorgefertigte Rezepte:
+
+| Recipe | Input | Output | Zweck |
+|--------|-------|--------|-------|
+| `system_check` | `{model?}` | `{docker, llama_server, agent_model, database_*}` | Pre-flight: ist die Umgebung startklar? |
+| `model_download` | `{url, dest?}` | `{path, bytes}` | GGUF von HuggingFace/URL laden |
+| `model_benchmark` | `{model, ngl?}` | `{model, ngl, tok_s}` | tok/s eines lokalen Modells messen |
+| `model_fit` | `{ram_gb}` | `{fits[]}` | welche Katalog-Modelle passen in RAM? |
+| `recommend` | `{ram_gb}` | `{recommend, settings}` | bestes Modell + llama-settings |
+
+Beispiel (Live auf diesem Host, `all_ok: true`):
+```json
+{
+  "docker":        {"ok": true, "detail": "docker 29.5.3 running"},
+  "llama_server":  {"ok": true, "detail": "llama-server.exe"},
+  "agent_model":   {"ok": true, "detail": "models/Ornith-1.0-9B-GGUF/ornith-1.0-9b-Q4_K_M.gguf"},
+  "database_sqlite":       {"ok": true, "detail": "embedded, always available"},
+  "database_provisioner":  {"ok": true, "detail": "docker available for sample DB provisioning"}
+}
+```
+
+Aufruf: `recipe.Run("system_check", map[string]any{"model": "models/Ornith-1.0-9B-GGUF/ornith-1.0-9b-Q4_K_M.gguf"})`
+(siehe `internal/syscheck` + `internal/recipe/syscheck_recipe.go`).
+
+---
+
+## NL2SQL-Status (Update): `nl2sql`-Tool implementiert
+
+Der vorige Befund ("nl2sql-Fallback crasht") ist behoben: `executeTool` hat jetzt
+einen `case "nl2sql"` (`internal/agent/handler.go`), der NL→SQL via LLM generiert
++ ausführt. Damit funktioniert NL→SQL **mit** `nl2sql`-Tool (nicht nur mit `query`).
+
+- **ohne nl2sql:** LLM füllt `query` direkt mit SQL (braucht klaren Prompt + `connection_id`).
+- **mit nl2sql:** LLM ruft `nl2sql` auf → Schema wird geholt, SQL generiert, ausgeführt.
+
+Verifiziert: Build + `go test ./internal/agent/` grün. End-to-End-Agent-Test gegen
+alle 17 Modelle steht noch aus (Bash-Skript `_t/bench_full.sh` crasht an Agent-Ready-Timing);
+Ersatz via `model_benchmark`-Recipe läuft robuster.
+

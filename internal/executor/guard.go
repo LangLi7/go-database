@@ -28,10 +28,10 @@ type Manager interface {
 }
 
 type GuardGate struct {
-	mgr     Manager
-	ex      *Executor
+	mgr      Manager
+	ex       *Executor
 	dbAccess []string // scoped DB IDs this caller may touch (empty = none)
-	isAdmin bool
+	isAdmin  bool
 }
 
 // NewGuardGate returns a Gate-compatible wrapper around mgr that enforces the

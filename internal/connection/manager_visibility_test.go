@@ -18,14 +18,14 @@ func (fakePlugin) Query(ctx context.Context, q string) (*plugin.Result, error) {
 func (fakePlugin) Execute(ctx context.Context, q string) (*plugin.Result, error) {
 	return &plugin.Result{}, nil
 }
-func (fakePlugin) Tables(ctx context.Context) ([]string, error)   { return nil, nil }
-func (fakePlugin) Schema(ctx context.Context) (*plugin.Schema, error) { return nil, nil }
-func (fakePlugin) Databases(ctx context.Context) ([]string, error) { return nil, nil }
+func (fakePlugin) Tables(ctx context.Context) ([]string, error)          { return nil, nil }
+func (fakePlugin) Schema(ctx context.Context) (*plugin.Schema, error)    { return nil, nil }
+func (fakePlugin) Databases(ctx context.Context) ([]string, error)       { return nil, nil }
 func (fakePlugin) CreateDatabase(ctx context.Context, name string) error { return nil }
 func (fakePlugin) DropDatabase(ctx context.Context, name string) error   { return nil }
-func (fakePlugin) Type() plugin.DBType                          { return "fake" }
-func (fakePlugin) Close() error                                  { return nil }
-func (fakePlugin) Ping(ctx context.Context) error                { return nil }
+func (fakePlugin) Type() plugin.DBType                                   { return "fake" }
+func (fakePlugin) Close() error                                          { return nil }
+func (fakePlugin) Ping(ctx context.Context) error                        { return nil }
 
 func init() {
 	plugin.Register("fake", func() plugin.DBPlugin { return fakePlugin{} })

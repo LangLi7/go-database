@@ -49,6 +49,7 @@ func ScopedGate(dbAccess []string, isAdmin bool) DBGate {
 
 // SetScopedGate swaps in a per-request scoped gate and returns the previous one.
 func SetScopedGate(g DBGate) DBGate { return setRequestGate(g) }
+
 // Each request creates a fresh in-memory session, calls the tool, and returns JSON.
 // ponytail: one-shot session per request, no streaming; add persistent session when throughput matters.
 func HTTPHandler(requireAPIKey func(r *http.Request) bool) http.Handler {

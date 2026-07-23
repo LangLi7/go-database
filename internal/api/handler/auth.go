@@ -17,8 +17,8 @@ import (
 // in-memory; nonces expire after 5 min (checked on verify).
 // ponytail: in-memory map; for multi-instance deploy, use Redis/shared store.
 type challengeStore struct {
-	mu  sync.Mutex
-	cs  map[string]auth.Challenge
+	mu sync.Mutex
+	cs map[string]auth.Challenge
 }
 
 func (s *challengeStore) put(c auth.Challenge) {

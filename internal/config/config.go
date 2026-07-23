@@ -83,13 +83,13 @@ type InternalDB struct {
 
 // MCP holds the MCP server / NL2SQL configuration.
 type MCP struct {
-	Enabled       bool         `json:"enabled" yaml:"enabled"`
-	Endpoint      string       `json:"endpoint" yaml:"endpoint"`
-	APIKey        string       `json:"api_key" yaml:"api_key"`
-	Provider      string       `json:"provider" yaml:"provider"`
-	Model         string       `json:"model" yaml:"model"`
-	FallbackPaid  bool         `json:"fallback_paid" yaml:"fallback_paid"`
-	LlamaCpp      LlamaCppCfg  `json:"llamacpp" yaml:"llamacpp"`
+	Enabled      bool        `json:"enabled" yaml:"enabled"`
+	Endpoint     string      `json:"endpoint" yaml:"endpoint"`
+	APIKey       string      `json:"api_key" yaml:"api_key"`
+	Provider     string      `json:"provider" yaml:"provider"`
+	Model        string      `json:"model" yaml:"model"`
+	FallbackPaid bool        `json:"fallback_paid" yaml:"fallback_paid"`
+	LlamaCpp     LlamaCppCfg `json:"llamacpp" yaml:"llamacpp"`
 }
 
 // LlamaCppCfg holds llama.cpp subprocess settings.

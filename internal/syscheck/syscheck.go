@@ -22,9 +22,9 @@ type Status struct {
 // modelPath is the configured mcp.model (bare name or .gguf path); empty = skip model check.
 func Check(modelPath string) map[string]Status {
 	out := map[string]Status{
-		"docker":            dockerStatus(),
-		"llama_server":      llamaStatus(),
-		"database_sqlite":   {OK: true, Detail: "embedded, always available"},
+		"docker":               dockerStatus(),
+		"llama_server":         llamaStatus(),
+		"database_sqlite":      {OK: true, Detail: "embedded, always available"},
 		"database_provisioner": dbProvisionerStatus(),
 	}
 	if modelPath != "" {

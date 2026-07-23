@@ -28,16 +28,16 @@ type CPUInfo struct {
 
 // RAMInfo memory details.
 type RAMInfo struct {
-	TotalGB int    `json:"total_gb"`
-	Type    string `json:"type,omitempty"`    // DDR4/DDR5 (best-effort)
-	SpeedMHz int   `json:"speed_mhz,omitempty"` // MT/s (best-effort)
+	TotalGB  int    `json:"total_gb"`
+	Type     string `json:"type,omitempty"`      // DDR4/DDR5 (best-effort)
+	SpeedMHz int    `json:"speed_mhz,omitempty"` // MT/s (best-effort)
 }
 
 // GPU describes a graphics card (VRAM is what matters for local models).
 type GPU struct {
-	Name        string `json:"name"`
-	VRAMGB      int    `json:"vram_gb"`
-	Driver      string `json:"driver,omitempty"`
+	Name   string `json:"name"`
+	VRAMGB int    `json:"vram_gb"`
+	Driver string `json:"driver,omitempty"`
 }
 
 // Scan collects host hardware info. CPU/RAM detail via OS tools

@@ -8,10 +8,11 @@ RUN CGO_ENABLED=0 go build -buildvcs=false -o /go-database ./cmd/server/
 RUN CGO_ENABLED=0 go build -buildvcs=false -o /go-database-mcp ./cmd/mcp/
 
 # Build llama-server from source (static CPU build, runs on alpine/musl).
-# Tag pinned for reproducibility. go-database (mcp.provider=llamacpp + auto_start=true)
-# launches this itself. Skip with --build-arg LLAMA=skip if you only use ollama/openrouter.
+# Uses master (supports recent architectures like qwen3.5/ornith). Pin to a
+# tag via --build-arg LLAMA_TAG=<tag> for reproducibility. go-database
+# (mcp.provider=llamacpp + auto_start=true) launches this itself.
 FROM alpine:3.20 AS llama-builder
-ARG LLAMA_TAG=b6407
+ARG LLAMA_TAG=master
 RUN apk add --no-cache git cmake gcc g++ make linux-headers
 WORKDIR /tmp
 RUN git clone --depth 1 --branch ${LLAMA_TAG} https://github.com/ggml-org/llama.cpp.git

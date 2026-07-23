@@ -7,8 +7,8 @@ import (
 
 // Recipe is a named, computable procedure. Input/output are free-form JSON.
 type Recipe struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 	Compute     func(in map[string]any) (map[string]any, error)
 }
 

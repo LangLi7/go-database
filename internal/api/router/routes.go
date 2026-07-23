@@ -15,8 +15,8 @@ import (
 	"go-database/internal/connection"
 	"go-database/internal/crypto"
 	"go-database/internal/internaldb"
-	mcp "go-database/internal/mcp"
 	"go-database/internal/llm"
+	mcp "go-database/internal/mcp"
 	"go-database/internal/scheduler"
 	"go-database/internal/transfer"
 )

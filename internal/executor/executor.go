@@ -29,7 +29,7 @@ type ExecutionResult struct {
 }
 
 type Executor struct {
-	mgr Manager
+	mgr  Manager
 	risk *suggest.RiskEvaluator
 }
 

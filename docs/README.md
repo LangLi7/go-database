@@ -1,42 +1,51 @@
-# go-database — Dokumentation
+# go-database Dokumentation
 
-Zentrale Anlaufstelle für alle Docs. Die API ist generisch ("Hafen" für
-Datenbanken); das Frontend (Dashboard/Admin-UI) ist ein **separater Client**
-(siehe `DECISIONS.md` ADR-005).
+API-only DB-Gateway mit lokaler LLM-Integration (llamacpp/GGUF, Ollama),
+MCP-Server, AI-Agent (NL→Tool-Routing) und Kochbuch-Recipes.
 
 ## Schnellstart
-- **README (Root)** — Landing Page, Features, Docker/Lokal-Quickstart, Protokoll-Überblick.
-- **STRUCTURE.md** — *Wo ist was, wo kommt was her.* Paket-Karte + Request-Lifecycle.
+- **README (Root):** `../README.md` — Projekt-Überblick + Start.
+- **Konfiguration:** `config/config.example.yaml` + `config/config.yaml`.
 
-## Konzept & Entscheidungen
-- **PROJEKT.md** — Vision, Ziele, Architektur-Übersicht, Permission-Modell, Roadmap-Kontext.
-- **DECISIONS.md** — ADRs (Architecture Decision Records): warum SQLite-Default,
-  warum kein Frontend im Repo, Rust-Status, Concurrency-Modell.
-- **RISKS.md** — Offene Risiken (Concurrency, Rate-Limit, async Tasks) für parallele externe Nutzer.
-- **ROADMAP.md** — Meilensteine M1–M6.
-- **TODO.md** — Status der Phasen (was ist implementiert).
-- **AGENT_RULES.md** — Regeln für KI-Agenten / Mitarbeiter bei Änderungen.
+## Verzeichnisstruktur
 
-## API
-- **api.md** — Vollständige REST/WS/SSE-Referenz mit curl-Beispielen (implementiert).
-- **PROTOCOLS.md** — Alle Protokolle: REST/WS/SSE (✅) + GraphQL/gRPC/OData/JSON-RPC/
-  SOAP/MQTT/Webhooks/FIX (📋 Design-Spec).
-- **CRYPTO.md** — Kryptographie-Anleitung: Algorithmen, Endpoints, Bedrohungsmodell, Zero-Trust, JtR.
-- **LLM.md** — LLM/AI-Subsystem: Provider (OpenRouter/LM Studio/Ollama), Modell-Entdeckung, Free→Paid Fallback.
-- **LOCAL_MODELS.md** — Local Models Cookbook: installierte Modelle, RAM, Quantisierung, Downloads, Konfiguration.
-- **MCP.md** — MCP-Server: Tools (`list_connections`, `query`, `execute`, `list_tables`, `schema`, `list_databases`, `nl2sql`).
+### `api/` — API-Dokumentation
+- `api.md` — REST-API-Referenz (Endpunkte, Auth, Beispiele).
+- `openapi.yaml` — OpenAPI 3.0 Spezifikation (maschinenlesbar).
+- `api.html` — HTML-Rendering der API (Swagger-UI-Style).
+- `index.html` / `dashboard.html` — Web-Oberflächen (statisch).
 
-## Projektstruktur (Kurzform)
+### `architecture/` — System-Design
+- `STRUCTURE.md` — Code-Struktur, Pakete, Datenfluss.
+- `PROTOCOLS.md` — Protokolle (Auth-Handshake, DB-Plugin-Interface).
+- `DECISIONS.md` — Architektur-Entscheidungen (ADRs).
+- `ROADMAP.md` — Geplante Features + Meilensteine.
+
+### `guides/` — Anleitungen
+- `LOCAL_MODELS.md` — llama.cpp / Docker / Offload (RAM↔VRAM).
+- `MCP.md` — MCP-Server (7 Tools) Setup + Nutzung.
+- `AGENT_RULES.md` — AI-Agent Verhaltensregeln + Tool-Routing.
+- `LLM.md` — LLM-Client (OpenRouter / LM Studio / Ollama).
+- `CRYPTO.md` — Verschlüsselung (AES-GCM, RSA, x25519).
+
+### `project/` — Projekt-Meta
+- `PROJEKT.md` — Deutsche Projektbeschreibung + Ziele.
+- `CHANGELOG.md` — Änderungshistorie.
+- `TODO.md` — Offene Aufgaben.
+- `RISKS.md` — Risikobewertung.
+- `CODING.md` — Coding-Conventions.
+
+### Root-Level Docs
+- `benchmark-models-2026-07-22.md` — Modell-Benchmark (CPU/GPU/Offload) + Docker + Recipes.
+- `examples/python/` — Python-Clients (`api_test.py`, `api_test_all_dbs.py`).
+
+## API-Docs generieren
+```bash
+# OpenAPI-Spec ist in api/openapi.yaml — mit Swagger-UI oder Redoc rendern:
+docker run -p 8088:8080 -v $(pwd)/docs/api/openapi.yaml:/spec.yaml swaggerapi/swagger-ui
 ```
-go-database/
-├── README.md            # Landing / Quickstart
-├── Makefile             # make build / build-all / clean
-├── Dockerfile           # Go-only, alpine runtime
-├── docker-compose.yml   # api + optional sample DBs (profile: samples)
-├── config/              # config.yaml (Default-Konfiguration)
-├── cmd/server/          # Entrypoint (main.go)
-├── internal/            # Alle Business-Logik (privat)
-├── plugins/             # 6 DB-Plugins (postgres, mysql, mariadb, sqlite, mongodb, redis)
-├── database/            # samples, external, docker-init, storage
-└── docs/                # Diese Dokumentation
-```
+
+## Recipes (Cookbook)
+System-Checks + Benchmarks via `recipe.Run(...)` (siehe `benchmark-models-2026-07-22.md`
+→ Abschnitt "Cookbook-Recipes"): `system_check`, `model_download`, `model_benchmark`,
+`model_fit`, `recommend`.

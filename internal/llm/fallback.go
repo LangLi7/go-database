@@ -16,9 +16,9 @@ import (
 // and avoids stale state if the local server recovers. If you see too many
 // fallbacks, bump localTimeout or mark local dead after N failures.
 type FallbackClient struct {
-	local      Client
-	cloud      Client
-	localTry   time.Duration // give local this long before bailing
+	local    Client
+	cloud    Client
+	localTry time.Duration // give local this long before bailing
 }
 
 // NewFallbackClient wraps a local and a cloud client. localTry caps how long
@@ -30,7 +30,9 @@ func NewFallbackClient(local, cloud Client, localTry time.Duration) *FallbackCli
 	return &FallbackClient{local: local, cloud: cloud, localTry: localTry}
 }
 
-func (f *FallbackClient) Name() string { return "fallback(" + f.local.Name() + "→" + f.cloud.Name() + ")" }
+func (f *FallbackClient) Name() string {
+	return "fallback(" + f.local.Name() + "→" + f.cloud.Name() + ")"
+}
 
 func (f *FallbackClient) Complete(ctx context.Context, prompt string) (string, error) {
 	lctx, cancel := context.WithTimeout(ctx, f.localTry)
