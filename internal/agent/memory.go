@@ -21,6 +21,9 @@ type MemoryEntry struct {
 // MemoryStore persists agent memory to a JSON file so it survives restarts and
 // spans sessions. ponytail: single-file JSON, no DB; swap for internaldb if you
 // need multi-user scoping or queries.
+// Cross-process safe: os-level flock (Linux) so multiple containers writing the
+// same mounted file won't corrupt it. On non-Linux (dev/Windows) the per-process
+// mutex still serializes within one process.
 type MemoryStore struct {
 	mu   sync.Mutex
 	path string
@@ -45,33 +48,43 @@ func (m *MemoryStore) load() []MemoryEntry {
 	return nil
 }
 
-func (m *MemoryStore) save(entries []MemoryEntry) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	data, _ := json.MarshalIndent(entries, "", "  ")
-	_ = os.WriteFile(m.path, data, 0644)
-}
-
 // Remember appends an entry.
 func (m *MemoryStore) Remember(typ, content, sessionID string) {
-	entries := m.load()
-	entries = append(entries, MemoryEntry{
-		Type:      typ,
-		Content:   content,
-		CreatedAt: time.Now(),
-		SessionID: sessionID,
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_ = m.withLock(func(f *os.File) error {
+		var entries []MemoryEntry
+		if data, err := os.ReadFile(m.path); err == nil {
+			json.Unmarshal(data, &entries)
+		}
+		entries = append(entries, MemoryEntry{
+			Type:      typ,
+			Content:   content,
+			CreatedAt: time.Now(),
+			SessionID: sessionID,
+		})
+		// ponytail: keep last 200 entries; trim oldest.
+		if len(entries) > 200 {
+			entries = entries[len(entries)-200:]
+		}
+		data, _ := json.MarshalIndent(entries, "", "  ")
+		return os.WriteFile(m.path, data, 0644)
 	})
-	// ponytail: keep last 200 entries; trim oldest.
-	if len(entries) > 200 {
-		entries = entries[len(entries)-200:]
-	}
-	m.save(entries)
 }
 
 // ContextPrompt renders the last N entries as a system-context block for the
 // LLM. Empty string when no memory yet.
 func (m *MemoryStore) ContextPrompt(n int) string {
-	entries := m.load()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var entries []MemoryEntry
+	_ = m.withLock(func(f *os.File) error {
+		data, err := os.ReadFile(m.path)
+		if err != nil {
+			return err
+		}
+		return json.Unmarshal(data, &entries)
+	})
 	if len(entries) == 0 {
 		return ""
 	}

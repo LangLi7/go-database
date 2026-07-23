@@ -5,7 +5,7 @@
 #   docker compose up                              # API + openrouter MCP (default profile)
 #   GODB_MCP_PROVIDER=llamacpp docker compose up   # local .gguf models via llama-server (auto-started in container)
 #   docker compose --profile llamacpp up           # explicit local-model profile
-#   docker compose up --scale api=3                # 3 API pods, each with own llama-server
+#   docker compose up --scale api=3            # 3 API pods — ONLY if each uses its own internal-db volume (SQLite is single-writer; see volume warning below)
 #   GODB_MCP_LLAMACPP_NGPU=99 docker compose up    # offload layers to GPU (needs NVIDIA toolkit, see deploy block)
 
 services:
@@ -26,6 +26,10 @@ services:
       GODB_MCP_LLAMACPP_PORT: "${GODB_MCP_LLAMACPP_PORT:-8081}"
       GODB_MCP_LLAMACPP_NGPU: "${GODB_MCP_LLAMACPP_NGPU:-0}"
     volumes:
+      # WARNING: internal-db holds SQLite (auth.db, internal state). SQLite is a
+      # SINGLE-WRITER store — do NOT share this volume across multiple api
+      # replicas (--scale api=N or deploy.replicas>1). Each replica needs its
+      # own volume, or use an external Postgres for auth to scale out.
       - internal-db:/app/database/internal
       - ./models:/app/models:ro
       # mount your own config to preconfigure (overrides the image's config.yaml):
