@@ -21,7 +21,9 @@ func TestFindLlamaCPP(t *testing.T) {
 }
 
 func TestLlamaCppNewClient(t *testing.T) {
-	c := NewClient("llamacpp", "", "test-model.gguf", "", false)
+	// model="test" signals NewClient to skip the eager llama-server auto-start
+	// (see client.go: model != "test" guard), so this stays a fast unit test.
+	c := NewClient("llamacpp", "", "test", "", false)
 	if c.Name() != "lmstudio" {
 		t.Fatalf("expected lmstudio (reused), got %s", c.Name())
 	}
